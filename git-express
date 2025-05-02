@@ -1,2 +1,101 @@
 #!/bin/bash
 
+# Exit immediately if a command exits with a non-zero status.
+set -e
+# Treat unset variables as an error when substituting.
+set -u
+# Pipelines return the exit status of the last command that failed, or zero if all succeed.
+set -o pipefail
+
+# --- Usage ---
+usage() {
+    echo "Usage: git-express <command> [<args>]"
+    echo ""
+    echo "Commands:"
+    echo "  clone <repository> [<directory>]   Clone a repository and set up worktrees"
+    # Add other commands here later
+    exit 1
+}
+
+# --- Clone command ---
+cmd_clone() {
+    if [ $# -lt 1 ]; then
+        echo "Error: Missing repository argument for clone command."
+        usage
+    fi
+
+    local repository="$1"
+    # All remaining arguments are passed directly to git clone
+    shift
+    local clone_args=("$@")
+    local directory="${clone_args[-1]}" # Potential directory is the last arg
+
+    # If the last argument is intended as the directory, use it. Otherwise, derive from repo URL.
+    if [[ ! " ${clone_args[@]} " =~ " -- " ]] && [[ "$directory" != "$repository" ]] && [[ ! "$directory" =~ ^- ]]; then
+        # Last arg looks like a directory name, remove it from clone_args
+        unset 'clone_args[${#clone_args[@]}-1]'
+    else
+        # Derive directory name from repository URL
+        directory=$(basename "$repository" .git)
+    fi
+
+    echo "Cloning repository '$repository' into '$directory'..."
+    git clone "$repository" "${clone_args[@]}" "$directory"
+
+    # Navigate into the cloned repository
+    pushd "$directory" > /dev/null
+
+    echo "Setting up worktree for default branch..."
+    # Determine the default branch name (handle main/master variations)
+    local default_branch
+    default_branch=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+
+    if [ -z "$default_branch" ]; then
+        echo "Error: Could not determine the default branch."
+        popd > /dev/null
+        exit 1
+    fi
+
+    # Flatten the branch name (replace / with -)
+    local flattened_branch_name
+    flattened_branch_name=$(echo "$default_branch" | sed 's/\//-/g')
+
+    # Construct the worktree directory name relative to the parent directory
+    local worktree_dir="../${directory}.${flattened_branch_name}"
+
+    echo "Creating worktree at '$worktree_dir' for branch '$default_branch'..."
+    # Use --force because the branch already exists in the main worktree checkout
+    git worktree add --force "$worktree_dir" "$default_branch"
+
+    # Return to the original directory
+    popd > /dev/null
+
+    echo "Git-express clone complete for '$directory'."
+    echo "Dynamic view: $directory"
+    echo "Static worktree for $default_branch: $worktree_dir"
+}
+
+# --- Main script logic ---
+main() {
+    if [ $# -eq 0 ]; then
+        usage
+    fi
+
+    local command="$1"
+    shift # Remove the command name from the arguments list
+
+    case "$command" in
+        clone)
+            cmd_clone "$@"
+            ;;
+        # Add other command cases here
+        *)
+            echo "Error: Unknown command '$command'"
+            usage
+            ;;
+    esac
+}
+
+# Execute main function with all script arguments
+main "$@"
+
