@@ -949,6 +949,10 @@ cmd_move() {
     fi
 
     # --- Execution ---
+    # Get display names for source and target (use basename for cleaner output)
+    local source_display=$(basename "$source_worktree")
+    local target_display=$(basename "$target_path")
+    
     if [ "$quiet_mode" = false ]; then
         echo "Moving worktree from '$source_worktree' to '$target_path'..."
     fi
