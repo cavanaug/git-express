@@ -139,7 +139,6 @@ cmd_clone() {
     popd > /dev/null
 
     echo "Git-express clone complete for '$directory'."
-    echo "Dynamic view: $directory"
     echo "Static worktree for $branch_for_static_worktree: $worktree_dir"
 }
 
