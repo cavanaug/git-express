@@ -16,15 +16,13 @@ load 'test_common.bash'
     # Paths need to be absolute for comparison
     local main_wt_path="$TEST_TEMP_DIR/list-repo"
     local static_wt_path="$TEST_TEMP_DIR/list-repo.main"
-    # Check dynamic line (current) - prefix, branch+marker, path
-    [[ "$output" == *" main (dynamic)"* ]] # Check branch name + marker
-    [[ "$output" == *"$main_wt_path" ]]    # Check path
-    [[ "$output" =~ ^\*\ main\ \(dynamic\) ]] # Check prefix and start of line precisely
+    # Check dynamic line (current)
+    # Match prefix "* ", branch "main (dynamic)", padding, and path
+    [[ "$output" =~ ^\*\ main\ \(dynamic\)[[:space:]]+${main_wt_path}$ ]]
 
-    # Check static line - prefix, branch, path
-    [[ "$output" == *"  main"* ]] && [[ "$output" != *"  main (dynamic)"* ]] # Check branch name without marker
-    [[ "$output" == *"$static_wt_path" ]] # Check path
-    [[ "$output" =~ ^\ \ \ main[[:space:]]+${static_wt_path}$ ]] # Check prefix, branch, padding, path precisely
+    # Check static line
+    # Match prefix "  ", branch "main", padding, and path
+    [[ "$output" =~ ^\ \ \ main[[:space:]]+${static_wt_path}$ ]]
 
 
     # Run list from inside the static worktree
@@ -32,15 +30,13 @@ load 'test_common.bash'
     run "$GIT_EXPRESS_PATH" list
     echo "$output"
     [ "$status" -eq 0 ]
-    # Check dynamic line - prefix, branch+marker, path
-    [[ "$output" == *" main (dynamic)"* ]] # Check branch name + marker
-    [[ "$output" == *"$main_wt_path" ]]    # Check path
-    [[ "$output" =~ ^\ \ \ main\ \(dynamic\)[[:space:]]+${main_wt_path}$ ]] # Check prefix and start of line precisely
+    # Check dynamic line
+    # Match prefix "  ", branch "main (dynamic)", padding, and path
+    [[ "$output" =~ ^\ \ \ main\ \(dynamic\)[[:space:]]+${main_wt_path}$ ]]
 
-    # Check static line (current) - prefix, branch, path
-    [[ "$output" == *"* main"* ]] && [[ "$output" != *"* main (dynamic)"* ]] # Check branch name without marker, with asterisk
-    [[ "$output" == *"$static_wt_path" ]] # Check path
-    [[ "$output" =~ ^\*\ main[[:space:]]+${static_wt_path}$ ]] # Check prefix, branch, padding, path precisely
+    # Check static line (current)
+    # Match prefix "* ", branch "main", padding, and path
+    [[ "$output" =~ ^\*\ main[[:space:]]+${static_wt_path}$ ]]
 }
 
 @test "list: listing after adding more worktrees" {
@@ -60,13 +56,13 @@ load 'test_common.bash'
 
     # Check presence of all entries (order might vary)
     # Dynamic (current)
-    [[ "$output" =~ ^\*\ main\ \(dynamic\)[[:space:]]+${main_wt_path}$ ]]
+    [[ "$output" =~ ^\*\ main\ \(dynamic\)[[:space:]]+${main_wt_path}$ ]] || fail "Dynamic line incorrect"
     # Static main
-    [[ "$output" =~ ^\ \ \ main[[:space:]]+${static_main_path}$ ]]
+    [[ "$output" =~ ^\ \ \ main[[:space:]]+${static_main_path}$ ]] || fail "Static main line incorrect"
     # Static simple
-    [[ "$output" =~ ^\ \ \ simple-branch[[:space:]]+${static_simple_path}$ ]]
+    [[ "$output" =~ ^\ \ \ simple-branch[[:space:]]+${static_simple_path}$ ]] || fail "Static simple line incorrect"
     # Static feature
-    [[ "$output" =~ ^\ \ \ feature/test-branch[[:space:]]+${static_feature_path}$ ]]
+    [[ "$output" =~ ^\ \ \ feature/test-branch[[:space:]]+${static_feature_path}$ ]] || fail "Static feature line incorrect"
 
 
     # Check current marker when inside another one
@@ -76,13 +72,13 @@ load 'test_common.bash'
     [ "$status" -eq 0 ]
     # Check presence of all entries (order might vary)
     # Dynamic
-    [[ "$output" =~ ^\ \ \ main\ \(dynamic\)[[:space:]]+${main_wt_path}$ ]]
+    [[ "$output" =~ ^\ \ \ main\ \(dynamic\)[[:space:]]+${main_wt_path}$ ]] || fail "Dynamic line incorrect (static context)"
     # Static main
-    [[ "$output" =~ ^\ \ \ main[[:space:]]+${static_main_path}$ ]]
+    [[ "$output" =~ ^\ \ \ main[[:space:]]+${static_main_path}$ ]] || fail "Static main line incorrect (static context)"
     # Static simple (current)
-    [[ "$output" =~ ^\*\ simple-branch[[:space:]]+${static_simple_path}$ ]]
+    [[ "$output" =~ ^\*\ simple-branch[[:space:]]+${static_simple_path}$ ]] || fail "Static simple line incorrect (static context)"
     # Static feature
-    [[ "$output" =~ ^\ \ \ feature/test-branch[[:space:]]+${static_feature_path}$ ]]
+    [[ "$output" =~ ^\ \ \ feature/test-branch[[:space:]]+${static_feature_path}$ ]] || fail "Static feature line incorrect (static context)"
 }
 
 @test "list: fails if not inside a git repository" {
