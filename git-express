@@ -625,7 +625,7 @@ cmd_remove() {
                 echo "Error: Branch '$target_path' does not exist." >&2
                 return 1
             fi
-        }
+        fi
     fi
     
     # --- Execution ---
