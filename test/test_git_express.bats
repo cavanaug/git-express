@@ -164,7 +164,7 @@ teardown() {
     [ ! -f "remote_repo/simple.txt" ] # Should NOT have simple.txt
     [ -d "remote_repo.simple-branch" ] # Check in current test dir
     [ -f "remote_repo.simple-branch/simple.txt" ] # Static worktree has the specified branch
-    [ ! -f "remote_repo.simple-branch/README.md" ] # Should not have main's files unless merged
+    [ -f "remote_repo.simple-branch/README.md" ] # Should have main's files as it's an ancestor
     branch_in_static=$(git -C "remote_repo.simple-branch" branch --show-current)
     [ "$branch_in_static" = "simple-branch" ]
     [[ "$output" == *"git-express clone complete for 'remote_repo'."* ]]
