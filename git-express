@@ -546,9 +546,9 @@ cmd_remove() {
 
     # If we reach here, we have a valid, existing, registered worktree to remove.
 
-    # Use the path known by git for the remove command, especially for stale entries.
+    # Use the path known by git for the remove command.
     # Use the original user-provided path for messages.
-    local target_path_for_git_cmd="$registered_path_for_match"
+    # Note: target_path_for_git_cmd is already set correctly in the loop above.
     local worktree_basename
     worktree_basename=$(basename "$target_path_for_git_cmd") # Basename from git's path
     local display_path="$worktree_path_to_remove" # Path for user messages
