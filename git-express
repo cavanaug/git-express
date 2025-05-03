@@ -88,6 +88,18 @@ usage_prune() {
     return 0
 }
 
+usage_repair() {
+    echo "Usage: git-express repair [opts]"
+    echo ""
+    echo "  Repair worktree administrative files."
+    echo "  Direct passthrough to 'git worktree repair'."
+    echo ""
+    echo "  Options:"
+    echo "    [opts]        All options are passed directly to 'git worktree repair'."
+    # Exit 0 when called for help, rely on calling function's exit status for errors
+    return 0
+}
+
 # Main usage function (called for general errors or top-level help)
 usage() {
     echo "Usage: git-express <command> [<args>]"
@@ -100,6 +112,7 @@ usage() {
     echo "  move  [opts] <worktree> <new-path>      Move a static worktree to a new location"
     echo "  remove [opts] <branch-name | worktree-path> Remove a static worktree"
     echo "  prune [opts]                           Remove stale worktree registrations"
+    echo "  repair [opts]                          Repair worktree administrative files"
     # Add other commands here later
     exit 1
 }
@@ -803,6 +816,25 @@ cmd_prune() {
     return $?
 }
 
+# --- Repair command ---
+cmd_repair() {
+    # Check for help option first
+    if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+        usage_repair
+        exit 0 # Exit cleanly after showing help
+    fi
+
+    # Check if inside a git repository/worktree
+    if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+        echo "Error: Not inside a git repository or worktree." >&2
+        return 1
+    fi
+
+    # Direct passthrough to git worktree repair
+    git worktree repair "$@"
+    return $?
+}
+
 # --- Move command ---
 cmd_move() {
     # Check for help option first
@@ -1019,6 +1051,9 @@ main() {
         ;;
     prune)
         cmd_prune "$@"
+        ;;
+    repair)
+        cmd_repair "$@"
         ;;
     --help | -h)
         usage

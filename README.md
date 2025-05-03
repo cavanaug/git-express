@@ -99,6 +99,18 @@ Options:
   [opts]           All options are passed directly to 'git worktree prune'.
 ```
 
+### git-express repair - Repair worktree administrative files
+
+```text
+git-express repair [opts]
+
+- Repairs worktree administrative files.
+- Direct passthrough to 'git worktree repair'.
+
+Options:
+  [opts]           All options are passed directly to 'git worktree repair'.
+```
+
 ## Directory Layout/Structure
 
 This is an example directory layout for worktrees for 2 repos.
