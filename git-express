@@ -28,44 +28,44 @@ cmd_clone() {
     # Simplified parsing: Identify -b, repository, directory. Pass others to git clone.
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -b)
-                if [[ -z "$2" || "$2" == -* ]]; then
-                    echo "Error: Option -b requires a branch name." >&2
-                    usage
-                fi
-                branch_to_checkout="$2"
-                shift 2 # Consume -b and its argument
-                ;;
-            --)
-                # End of options marker. Add remaining args to clone_options.
-                shift # Consume --
-                clone_options+=("$@")
-                break # Stop parsing
-                ;;
-            -*)
-                # It's an option for git clone. Add it and its potential argument.
+        -b)
+            if [[ -z "$2" || "$2" == -* ]]; then
+                echo "Error: Option -b requires a branch name." >&2
+                usage
+            fi
+            branch_to_checkout="$2"
+            shift 2 # Consume -b and its argument
+            ;;
+        --)
+            # End of options marker. Add remaining args to clone_options.
+            shift # Consume --
+            clone_options+=("$@")
+            break # Stop parsing
+            ;;
+        -*)
+            # It's an option for git clone. Add it and its potential argument.
+            clone_options+=("$1")
+            shift # Consume the option flag
+            # Check if the next argument is NOT an option itself (doesn't start with -)
+            # and is not empty. If so, assume it's the value for the current option.
+            if [[ $# -gt 0 && ! "$1" =~ ^- ]]; then
                 clone_options+=("$1")
-                shift # Consume the option flag
-                # Check if the next argument is NOT an option itself (doesn't start with -)
-                # and is not empty. If so, assume it's the value for the current option.
-                if [[ $# -gt 0 && ! "$1" =~ ^- ]]; then
-                    clone_options+=("$1")
-                    shift # Consume the option's value
-                fi
-                ;;
-            *)
-                # Positional arguments: first is repo, second is directory
-                if [ -z "$repository" ]; then
-                    repository="$1"
-                elif [ -z "$directory" ]; then
-                    directory="$1"
-                else
-                    # Unexpected positional argument. Pass it to git clone.
-                    echo "Warning: Unexpected positional argument '$1'. Passing to git clone." >&2
-                    clone_options+=("$1")
-                fi
-                shift # Consume the positional argument
-                ;;
+                shift # Consume the option's value
+            fi
+            ;;
+        *)
+            # Positional arguments: first is repo, second is directory
+            if [ -z "$repository" ]; then
+                repository="$1"
+            elif [ -z "$directory" ]; then
+                directory="$1"
+            else
+                # Unexpected positional argument. Pass it to git clone.
+                echo "Warning: Unexpected positional argument '$1'. Passing to git clone." >&2
+                clone_options+=("$1")
+            fi
+            shift # Consume the positional argument
+            ;;
         esac
     done
 
@@ -86,7 +86,7 @@ cmd_clone() {
     git clone "${clone_options[@]}" "$repository" "$directory"
 
     # Navigate into the cloned repository (dynamic worktree)
-    pushd "$directory" > /dev/null
+    pushd "$directory" >/dev/null
 
     local branch_for_static_worktree=""
     if [ -n "$branch_to_checkout" ]; then
@@ -94,12 +94,12 @@ cmd_clone() {
         branch_for_static_worktree="$branch_to_checkout"
         echo "Setting up worktree for specified branch '$branch_for_static_worktree'..."
         # Check if the branch exists locally or remotely
-        if ! git show-ref --verify --quiet "refs/heads/$branch_for_static_worktree" && \
-           ! git show-ref --verify --quiet "refs/remotes/origin/$branch_for_static_worktree"; then
-             echo "Error: Branch '$branch_for_static_worktree' not found locally or in origin remote." >&2
-             # Clean up potentially incomplete clone? Maybe not, let user decide.
-             popd > /dev/null
-             return 1 # Use return instead of exit for functions
+        if ! git show-ref --verify --quiet "refs/heads/$branch_for_static_worktree" &&
+            ! git show-ref --verify --quiet "refs/remotes/origin/$branch_for_static_worktree"; then
+            echo "Error: Branch '$branch_for_static_worktree' not found locally or in origin remote." >&2
+            # Clean up potentially incomplete clone? Maybe not, let user decide.
+            popd >/dev/null
+            return 1 # Use return instead of exit for functions
         fi
     else
         # Determine the default branch name (handle main/master variations)
@@ -107,7 +107,7 @@ cmd_clone() {
         branch_for_static_worktree=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
         if [ -z "$branch_for_static_worktree" ]; then
             echo "Error: Could not determine the default branch." >&2
-            popd > /dev/null
+            popd >/dev/null
             return 1
         fi
         echo "Setting up worktree for default branch '$branch_for_static_worktree'..."
@@ -130,16 +130,16 @@ cmd_clone() {
     else
         echo "Error: Failed to create worktree for branch '$branch_for_static_worktree'." >&2
         # Attempt to clean up? Maybe just report error.
-        popd > /dev/null
+        popd >/dev/null
         return 1
     fi
 
-
     # Return to the original directory
-    popd > /dev/null
+    popd >/dev/null
 
-    echo "Git-express clone complete for '$directory'."
-    echo "Static worktree for $branch_for_static_worktree: $worktree_dir"
+    echo
+    echo "git-express clone complete for '$directory'."
+    echo "git-express worktree complete for xxx"
 }
 
 # --- Main script logic ---
@@ -152,20 +152,19 @@ main() {
     shift # Remove the command name from the arguments list
 
     case "$command" in
-        clone)
-            cmd_clone "$@"
-            ;;
-        --help|-h)
-            usage
-            ;;
-        # Add other command cases here
-        *)
-            echo "Error: Unknown command '$command'"
-            usage
-            ;;
+    clone)
+        cmd_clone "$@"
+        ;;
+    --help | -h)
+        usage
+        ;;
+    # Add other command cases here
+    *)
+        echo "Error: Unknown command '$command'"
+        usage
+        ;;
     esac
 }
 
 # Execute main function with all script arguments
 main "$@"
-
