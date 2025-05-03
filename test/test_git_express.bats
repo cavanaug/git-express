@@ -119,7 +119,8 @@ teardown() {
     [ "$status" -eq 1 ]
     [[ "$output" == *"Usage: git-express <command> [<args>]"* ]]
     [[ "$output" == *"Commands:"* ]]
-    [[ "$output" == *"clone <repository> [<directory>]"* ]]
+    [[ "$output" == *"clone [opts] [-b <branch>] <repo> [<dir>]"* ]] # Updated check
+    [[ "$output" == *"new   [opts] <branch>"* ]] # Updated check
 }
 
 
@@ -331,7 +332,8 @@ setup_for_new_tests() {
     [ "$status" -eq 1 ]
     [[ "$output" == *"Usage: git-express <command> [<args>]"* ]]
     [[ "$output" == *"Commands:"* ]]
-    [[ "$output" == *"clone <repository> [<directory>]"* ]]
+    [[ "$output" == *"clone [opts] [-b <branch>] <repo> [<dir>]"* ]] # Updated check
+    [[ "$output" == *"new   [opts] <branch>"* ]] # Updated check
 }
 
 @test "git-express -h shows usage and exits with status 1" {
@@ -339,7 +341,8 @@ setup_for_new_tests() {
     [ "$status" -eq 1 ]
     [[ "$output" == *"Usage: git-express <command> [<args>]"* ]]
     [[ "$output" == *"Commands:"* ]]
-    [[ "$output" == *"clone <repository> [<directory>]"* ]]
+    [[ "$output" == *"clone [opts] [-b <branch>] <repo> [<dir>]"* ]] # Updated check
+    [[ "$output" == *"new   [opts] <branch>"* ]] # Updated check
 }
 
 @test "git-express with unknown command shows error and usage" {
