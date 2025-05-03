@@ -576,17 +576,19 @@ cmd_remove() {
             return 1
         elif [ "$check_status" -eq 3 ]; then
             # No match found either way
+            echo "Error: Could not find a registered worktree matching '$target_identifier' (checked as path and branch name)." >&2
+            # Provide more specific feedback based on existence of original input path
             if [ -e "$target_identifier" ]; then
-                echo "Error: Worktree path '$target_identifier' exists but is not a registered worktree." >&2
+                echo "       Path '$target_identifier' exists but is not a registered worktree." >&2
             else
-                echo "Error: Worktree path '$target_identifier' does not exist and is not a registered worktree." >&2
+                echo "       Path '$target_identifier' does not exist and is not a registered worktree." >&2
             fi
-            
             # Check if the branch name exists in git, even if no worktree matches
             if git show-ref --verify --quiet "refs/heads/$target_identifier"; then
-                echo "Branch '$target_identifier' exists, but no corresponding static worktree was found." >&2
+                echo "       Branch '$target_identifier' exists, but no corresponding static worktree was found." >&2
+            else
+                echo "       Branch '$target_identifier' does not exist." >&2
             fi
-            
             return 1
         fi
     fi
