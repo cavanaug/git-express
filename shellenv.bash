@@ -112,8 +112,7 @@ gx-cw() {
     fi
 
     # Error: No suitable worktree found
-    echo "Error: No specific worktree ending in '$expected_suffix' found for branch '$target_branch'," >&2
-    echo "       and branch '$target_branch' is not the current branch ('$main_worktree_branch') in the main worktree ($main_worktree_path)." >&2
+    echo "Error: no worktree branch exists for \"$target_branch\"" >&2
     return 1
 }
 
