@@ -71,24 +71,19 @@ load 'test_common.bash'
     [[ "$output" == *"git-express only supports moving static worktrees."* ]]
 }
 
-@test "move: fails if target path already exists" {
+@test "move: fails if target parent directory does not exist" {
     setup_cloned_repo
     "$GIT_EXPRESS_PATH" add -q simple-branch
     [ -d "../test-repo.simple-branch" ]
     
-    # Create a target that already exists
-    mkdir -p "../existing-target"
-    
-    run "$GIT_EXPRESS_PATH" move "../test-repo.simple-branch" "../existing-target"
+    # Try to move to a non-existent parent directory
+    run "$GIT_EXPRESS_PATH" move "../test-repo.simple-branch" "../non-existent-dir/test-repo.simple-branch"
 
     echo "$output"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"Error: Target path '../existing-target' already exists."* ]]
+    [[ "$output" == *"Error: Parent directory of target path '../non-existent-dir' does not exist."* ]]
     # Original worktree should still exist
     [ -d "../test-repo.simple-branch" ]
-    
-    # Cleanup
-    rm -rf "../existing-target"
 }
 
 @test "move: quiet mode suppresses informational messages" {

@@ -934,19 +934,14 @@ cmd_move() {
         return 1
     fi
 
-    # Verify target path doesn't exist
-    if [ -e "$target_path" ]; then
-        echo "Error: Target path '$target_path' already exists." >&2
-        return 1
-    fi
-
-    # Verify target path parent directory exists
+    # Verify target parent directory exists
     local target_parent_dir
     target_parent_dir=$(dirname "$target_path")
     if [ ! -d "$target_parent_dir" ]; then
         echo "Error: Parent directory of target path '$target_parent_dir' does not exist." >&2
         return 1
     fi
+
 
     # --- Execution ---
     # Get display names for source and target (use basename for cleaner output)
