@@ -117,11 +117,15 @@ load 'test_common.bash'
     [ -d "../test-repo.simple-branch" ]
     mkdir -p "../new-location"
     
+    # Get absolute paths before moving outside the repo
+    local abs_source_path="$TEST_TEMP_DIR/test-repo.simple-branch"
+    local abs_target_path="$TEST_TEMP_DIR/new-location/test-repo.simple-branch"
+    
     # Move to a directory outside the git repository
     cd "$TEST_TEMP_DIR"
     
-    # Run the move command from outside the git repository
-    run "$GIT_EXPRESS_PATH" move "test-repo.simple-branch" "new-location/test-repo.simple-branch"
+    # Run the move command from outside the git repository with absolute paths
+    run "$GIT_EXPRESS_PATH" move "$abs_source_path" "$abs_target_path"
 
     echo "$output"
     [ "$status" -eq 0 ]

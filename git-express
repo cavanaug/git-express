@@ -859,10 +859,23 @@ cmd_move() {
         return 1
     fi
 
+    # Check if source worktree exists
+    if [ ! -d "$source_worktree" ]; then
+        echo "Error: Source worktree '$source_worktree' does not exist." >&2
+        return 1
+    fi
+    
     # Check if source worktree contains a .git file (indicating it's a worktree)
     if [ ! -f "$source_worktree/.git" ]; then
-        echo "Error: Source path '$source_worktree' does not appear to be a git worktree." >&2
-        return 1
+        # Special case: check if this is the main worktree
+        if [ -d "$source_worktree/.git" ]; then
+            echo "Error: Cannot move the main (dynamic) worktree ('$source_worktree')." >&2
+            echo "git-express only supports moving static worktrees." >&2
+            return 1
+        else
+            echo "Error: Source path '$source_worktree' is not a registered git worktree." >&2
+            return 1
+        fi
     fi
 
     # Get the git directory from the .git file in the worktree
@@ -948,8 +961,14 @@ cmd_move() {
         fi
     done
 
+    # Get absolute paths for source and target to avoid path resolution issues
+    local abs_source_worktree
+    abs_source_worktree=$(realpath -m "$source_worktree")
+    local abs_target_path
+    abs_target_path=$(realpath -m "$target_path")
+    
     # Execute git worktree move from the main worktree
-    if (cd "$main_worktree_path" && git worktree move "${move_cmd_options[@]}" "$source_worktree" "$target_path"); then
+    if (cd "$main_worktree_path" && git worktree move "${move_cmd_options[@]}" "$abs_source_worktree" "$abs_target_path"); then
         if [ "$quiet_mode" = false ]; then
             echo "Worktree moved successfully."
             echo "git-express move complete from '$source_worktree' to '$target_path'"
