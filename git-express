@@ -25,7 +25,7 @@ cmd_clone() {
     local clone_options=() # Options to pass to git clone
 
     # --- Argument Parsing ---
-    # Manual parsing to handle options, repository, and optional directory
+    # Simplified parsing: Identify -b, repository, directory. Pass others to git clone.
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -b)
@@ -37,53 +37,34 @@ cmd_clone() {
                 shift 2 # Consume -b and its argument
                 ;;
             --)
-                # All subsequent arguments are treated as non-options
+                # End of options marker. Add remaining args to clone_options.
                 shift # Consume --
-                clone_options+=("$@") # Add remaining args to clone_options
-                break # Stop parsing options
+                clone_options+=("$@")
+                break # Stop parsing
                 ;;
             -*)
-                # Assume it's an option for git clone
+                # It's an option for git clone. Add it and its potential argument.
                 clone_options+=("$1")
-                # Handle options with arguments if necessary, simple case for now
-                if [[ "$1" == "-o" || "$1" == "--origin" || \
-                      "$1" == "-c" || "$1" == "--config" || \
-                      "$1" == "--depth" || "$1" == "--recurse-submodules" || \
-                      "$1" == "--shallow-since" || "$1" == "--shallow-exclude" || \
-                      "$1" == "-j" || "$1" == "--jobs" || \
-                      "$1" == "--reference" || "$1" == "--reference-if-able" || \
-                      "$1" == "--dissociate" || "$1" == "--separate-git-dir" || \
-                      "$1" == "-u" || "$1" == "--upload-pack" || \
-                      "$1" == "--template" || "$1" == "--server-option" ]]; then
-                    if [[ -z "$2" || "$2" == -* ]]; then
-                         # Assume it's a boolean flag or git clone will handle error
-                         : # No-op, just add the flag
-                    else
-                        clone_options+=("$2")
-                        shift # Consume the option's argument
-                    fi
+                shift # Consume the option flag
+                # Check if the next argument is NOT an option itself (doesn't start with -)
+                # and is not empty. If so, assume it's the value for the current option.
+                if [[ $# -gt 0 && ! "$1" =~ ^- ]]; then
+                    clone_options+=("$1")
+                    shift # Consume the option's value
                 fi
-                shift # Consume the option itself
                 ;;
             *)
-                # First non-option argument is the repository
+                # Positional arguments: first is repo, second is directory
                 if [ -z "$repository" ]; then
                     repository="$1"
-                # Second non-option argument is the directory
                 elif [ -z "$directory" ]; then
                     directory="$1"
                 else
-                    # More than two non-option arguments (after potential --)
-                    # If we already have repo and dir, treat others as clone options/args
-                    # This case might be complex depending on git clone's own parsing
-                    # For simplicity, let's assume only repo and dir are positional after options
-                    # Or, if user used '--', they are already in clone_options
-                    if [[ ! " ${clone_options[@]} " =~ " $1 " ]]; then # Avoid duplicates if already added after --
-                       echo "Warning: Unexpected argument '$1'. Passing to git clone." >&2
-                       clone_options+=("$1")
-                    fi
+                    # Unexpected positional argument. Pass it to git clone.
+                    echo "Warning: Unexpected positional argument '$1'. Passing to git clone." >&2
+                    clone_options+=("$1")
                 fi
-                shift # Consume the argument
+                shift # Consume the positional argument
                 ;;
         esac
     done
