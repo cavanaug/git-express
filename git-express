@@ -486,8 +486,8 @@ cmd_remove() {
             echo "Error: Cannot remove the main (dynamic) worktree '$worktree_path_to_remove'." >&2
             echo "git-express only supports removing static worktrees." >&2
             return 1
-        fi
     fi
+    # Removed extra 'fi' here
 
     # Loop through registered worktrees and compare canonical paths
     local found_match=false
