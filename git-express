@@ -80,14 +80,10 @@ usage_prune() {
     echo "Usage: git-express prune [opts]"
     echo ""
     echo "  Remove stale worktree registrations."
-    echo "  Removes registrations for worktrees that don't exist on disk."
-    echo "  Removes registrations for worktrees associated with non-existent branches."
-    echo "  Uses 'git worktree prune' internally with additional checks."
+    echo "  Direct passthrough to 'git worktree prune'."
     echo ""
     echo "  Options:"
-    echo "    -q, --quiet   Suppress informational messages from git-express."
-    echo "    -n, --dry-run Show what would be pruned without actually pruning."
-    echo "    [opts]        Other options are passed directly to 'git worktree prune'."
+    echo "    [opts]        All options are passed directly to 'git worktree prune'."
     # Exit 0 when called for help, rely on calling function's exit status for errors
     return 0
 }
@@ -796,175 +792,15 @@ cmd_prune() {
         exit 0 # Exit cleanly after showing help
     fi
 
-    local prune_options=() # Options to pass to git worktree prune
-    local quiet_mode=false
-    local dry_run=false
-
-    # --- Argument Parsing ---
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            -q|--quiet)
-                quiet_mode=true
-                shift
-                ;;
-            -n|--dry-run)
-                dry_run=true
-                shift
-                ;;
-            --)
-                shift # Consume --
-                break # Stop parsing options
-                ;;
-            -*)
-                # Assume it's another option for git worktree prune
-                prune_options+=("$1")
-                shift
-                # Check if the next argument is NOT an option itself
-                if [[ $# -gt 0 && ! "$1" =~ ^- ]]; then
-                    prune_options+=("$1")
-                    shift
-                fi
-                ;;
-            *)
-                # Unexpected positional argument
-                echo "Error: Unexpected argument '$1' for 'prune' command." >&2
-                usage_prune
-                return 1
-                ;;
-        esac
-    done
-
     # Check if inside a git repository/worktree
     if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
         echo "Error: Not inside a git repository or worktree." >&2
         return 1
     fi
 
-    # Get main worktree path (dynamic view)
-    local main_worktree_path
-    main_worktree_path=$(git rev-parse --show-toplevel)
-    if [ -z "$main_worktree_path" ]; then
-        echo "Error: Could not determine the repository's top-level directory." >&2
-        return 1
-    fi
-    local main_worktree_parent_dir
-    main_worktree_parent_dir=$(dirname "$main_worktree_path")
-
-    # --- Find stale worktrees ---
-    local stale_count=0
-    local pruned_count=0
-    local stale_worktrees=()
-    local branch_less_worktrees=()
-
-    if [ "$quiet_mode" = false ]; then
-        echo "Scanning for stale worktree registrations..."
-    fi
-
-    # Get list of all branches
-    local branches=()
-    while IFS= read -r branch; do
-        branches+=("$branch")
-    done < <(git for-each-ref --format='%(refname:short)' refs/heads/)
-
-    # Process all worktrees
-    while IFS= read -r line; do
-        if [[ "$line" == worktree* ]]; then
-            local worktree_path
-            worktree_path=$(echo "$line" | cut -d' ' -f2-)
-            local abs_worktree_path
-            
-            # Handle absolute and relative paths
-            if [[ "$worktree_path" == /* ]]; then
-                abs_worktree_path="$worktree_path"
-            else
-                abs_worktree_path="$main_worktree_parent_dir/$worktree_path"
-            fi
-            
-            # Skip the main worktree
-            if [ "$abs_worktree_path" == "$main_worktree_path" ]; then
-                continue
-            fi
-            
-            # Check if worktree exists on disk
-            if [ ! -d "$abs_worktree_path" ]; then
-                stale_worktrees+=("$worktree_path")
-                stale_count=$((stale_count + 1))
-                continue
-            fi
-            
-            # Check if worktree has a valid branch
-            local branch=""
-            local found_branch=false
-            
-            # Read the branch from the .git file in the worktree
-            if [ -f "$abs_worktree_path/.git" ]; then
-                local git_dir
-                git_dir=$(grep -oP "gitdir: \K.*" "$abs_worktree_path/.git")
-                if [ -n "$git_dir" ]; then
-                    # Extract branch name from the git dir path
-                    # Typically in format: /path/to/repo/.git/worktrees/branch-name
-                    branch=$(basename "$git_dir")
-                    
-                    # Check if this branch exists
-                    for existing_branch in "${branches[@]}"; do
-                        if [ "$existing_branch" == "$branch" ]; then
-                            found_branch=true
-                            break
-                        fi
-                    done
-                    
-                    if [ "$found_branch" = false ]; then
-                        branch_less_worktrees+=("$worktree_path")
-                        stale_count=$((stale_count + 1))
-                    fi
-                fi
-            fi
-        fi
-    done < <(git worktree list --porcelain)
-
-    # --- Report findings ---
-    if [ "$stale_count" -eq 0 ]; then
-        if [ "$quiet_mode" = false ]; then
-            echo "No stale worktree registrations found."
-        fi
-        return 0
-    fi
-
-    if [ "$quiet_mode" = false ]; then
-        echo "Found $stale_count stale worktree registrations:"
-        
-        for worktree in "${stale_worktrees[@]}"; do
-            echo "  - $worktree (missing on disk)"
-        done
-        
-        for worktree in "${branch_less_worktrees[@]}"; do
-            echo "  - $worktree (branch does not exist)"
-        done
-    fi
-
-    # --- Execute pruning ---
-    if [ "$dry_run" = true ]; then
-        if [ "$quiet_mode" = false ]; then
-            echo "Dry run: No changes made."
-        fi
-        return 0
-    fi
-
-    if [ "$quiet_mode" = false ]; then
-        echo "Pruning stale worktree registrations..."
-    fi
-
-    # Run git worktree prune to remove stale entries
-    if git worktree prune "${prune_options[@]}"; then
-        pruned_count=$stale_count
-        if [ "$quiet_mode" = false ]; then
-            echo "Successfully pruned $pruned_count stale worktree registrations."
-        fi
-        return 0
-    else
-        echo "Error: Failed to prune worktree registrations." >&2
-        return 1
-    fi
+    # Direct passthrough to git worktree prune
+    git worktree prune "$@"
+    return $?
 }
 
 # --- Move command ---

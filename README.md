@@ -93,14 +93,10 @@ Options:
 git-express prune [opts]
 
 - Removes stale worktree registrations.
-- Removes registrations for worktrees that don't exist on disk.
-- Removes registrations for worktrees associated with non-existent branches.
-- Uses 'git worktree prune' internally with additional checks.
+- Direct passthrough to 'git worktree prune'.
 
 Options:
-  -q, --quiet      Suppress informational messages.
-  -n, --dry-run    Show what would be pruned without actually pruning.
-  [opts]           Other options passed directly to 'git worktree prune'.
+  [opts]           All options are passed directly to 'git worktree prune'.
 ```
 
 ## Directory Layout/Structure
