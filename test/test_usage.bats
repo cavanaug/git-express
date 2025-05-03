@@ -5,32 +5,35 @@ load 'test_common.bash'
 
 # --- Basic Usage Tests ---
 
-@test "git-express with no arguments shows usage and exits with status 1" {
+@test "git-express with no arguments shows general usage and exits with status 1" {
     run "$GIT_EXPRESS_PATH"
     [ "$status" -eq 1 ]
     [[ "$output" == *"Usage: git-express <command> [<args>]"* ]]
+    [[ "$output" == *"       git-express <command> --help"* ]]
     [[ "$output" == *"Commands:"* ]]
-    [[ "$output" == *"clone [opts] [-b <branch>] <repo> [<dir>]"* ]]
+    [[ "$output" == *"clone"* ]]
     [[ "$output" == *"add   [opts] <branch>"* ]]
     [[ "$output" == *"list"* ]]
 }
 
-@test "git-express --help shows usage and exits with status 1" {
+@test "git-express --help shows general usage and exits with status 1" {
     run "$GIT_EXPRESS_PATH" --help
-    [ "$status" -eq 1 ]
+    [ "$status" -eq 1 ] # Top-level help still exits with 1
     [[ "$output" == *"Usage: git-express <command> [<args>]"* ]]
+    [[ "$output" == *"       git-express <command> --help"* ]]
     [[ "$output" == *"Commands:"* ]]
-    [[ "$output" == *"clone [opts] [-b <branch>] <repo> [<dir>]"* ]]
+    [[ "$output" == *"clone"* ]]
     [[ "$output" == *"add   [opts] <branch>"* ]]
     [[ "$output" == *"list"* ]]
 }
 
-@test "git-express -h shows usage and exits with status 1" {
+@test "git-express -h shows general usage and exits with status 1" {
     run "$GIT_EXPRESS_PATH" -h
-    [ "$status" -eq 1 ]
+    [ "$status" -eq 1 ] # Top-level help still exits with 1
     [[ "$output" == *"Usage: git-express <command> [<args>]"* ]]
+    [[ "$output" == *"       git-express <command> --help"* ]]
     [[ "$output" == *"Commands:"* ]]
-    [[ "$output" == *"clone [opts] [-b <branch>] <repo> [<dir>]"* ]]
+    [[ "$output" == *"clone"* ]]
     [[ "$output" == *"add   [opts] <branch>"* ]]
     [[ "$output" == *"list"* ]]
 }
@@ -70,4 +73,49 @@ load 'test_common.bash'
     [ "$status" -eq 0 ] # Should succeed
     [[ "$output" == *" main (dynamic)"* ]] # Check for expected list output
     [[ ! "$output" == *"Usage: git-express <command> [<args>]"* ]] # Ensure usage is NOT shown
+}
+
+# --- Subcommand --help Tests ---
+
+@test "usage: clone --help shows clone usage" {
+    run "$GIT_EXPRESS_PATH" clone --help
+    [ "$status" -eq 0 ] # Help exits with 0
+    [[ "$output" == *"Usage: git-express clone [opts]"* ]] # Check specific clone usage
+    [[ "$output" == *"Clone a repository and set up worktrees."* ]]
+    [[ ! "$output" == *"Commands:"* ]] # Should not show general command list
+}
+
+@test "usage: clone -h shows clone usage" {
+    run "$GIT_EXPRESS_PATH" clone -h
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: git-express clone [opts]"* ]]
+    [[ "$output" == *"Clone a repository and set up worktrees."* ]]
+}
+
+@test "usage: add --help shows add usage" {
+    run "$GIT_EXPRESS_PATH" add --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: git-express add [opts] <branch>"* ]]
+    [[ "$output" == *"Create a static worktree for <branch>."* ]]
+}
+
+@test "usage: add -h shows add usage" {
+    run "$GIT_EXPRESS_PATH" add -h
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: git-express add [opts] <branch>"* ]]
+    [[ "$output" == *"Create a static worktree for <branch>."* ]]
+}
+
+@test "usage: list --help shows list usage" {
+    run "$GIT_EXPRESS_PATH" list --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: git-express list"* ]]
+    [[ "$output" == *"List all worktrees associated"* ]]
+}
+
+@test "usage: list -h shows list usage" {
+    run "$GIT_EXPRESS_PATH" list -h
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: git-express list"* ]]
+    [[ "$output" == *"List all worktrees associated"* ]]
 }

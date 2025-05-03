@@ -7,9 +7,48 @@ set -u
 # Pipelines return the exit status of the last command that failed, or zero if all succeed.
 set -o pipefail
 
-# --- Usage ---
+# --- Usage Functions ---
+usage_clone() {
+    echo "Usage: git-express clone [opts] [-b <branch>] <repo> [<dir>]"
+    echo ""
+    echo "  Clone a repository and set up worktrees."
+    echo "  Creates a dynamic worktree in <dir> (derived from <repo> if not specified)."
+    echo "  Creates a static worktree for the specified or default branch."
+    echo ""
+    echo "  Options:"
+    echo "    -b <branch>   Branch to create the initial static worktree for (defaults to repo HEAD)."
+    echo "    -q, --quiet   Suppress informational messages from git-express and underlying git commands."
+    echo "    [opts]        Other options are passed directly to 'git clone'."
+    exit 0 # Exit successfully after showing help
+}
+
+usage_add() {
+    echo "Usage: git-express add [opts] <branch>"
+    echo ""
+    echo "  Create a static worktree for <branch>."
+    echo "  If <branch> does not exist, it is created based on the current HEAD."
+    echo "  Worktree is created at ../<repo_name>.<flattened_branch_name>."
+    echo ""
+    echo "  Options:"
+    echo "    -q, --quiet   Suppress informational messages from git-express and underlying git commands."
+    echo "    [opts]        Other options are passed directly to 'git worktree add'."
+    exit 0
+}
+
+usage_list() {
+    echo "Usage: git-express list"
+    echo ""
+    echo "  List all worktrees associated with the current repository."
+    echo "  Marks the current worktree with '*'."
+    echo "  Marks the dynamic worktree with '(dynamic)'."
+    echo "  Output format: [* ]<branch> [(dynamic)] <path>"
+    exit 0
+}
+
+# Main usage function (called for general errors or top-level help)
 usage() {
     echo "Usage: git-express <command> [<args>]"
+    echo "       git-express <command> --help"
     echo ""
     echo "Commands:"
     echo "  clone [opts] [-b <branch>] <repo> [<dir>]  Clone repo and setup worktrees"
@@ -21,6 +60,11 @@ usage() {
 
 # --- Clone command ---
 cmd_clone() {
+    # Check for help option first
+    if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+        usage_clone
+    fi
+
     local repository=""
     local directory=""
     local branch_to_checkout=""
@@ -190,6 +234,11 @@ cmd_clone() {
 
 # --- Add command ---
 cmd_add() {
+    # Check for help option first
+    if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+        usage_add
+    fi
+
     local branch_name=""
     local worktree_options=() # Options to pass to git worktree add
     local quiet_mode=false    # Flag for quiet operation (though less output in 'new' anyway)
@@ -328,6 +377,11 @@ cmd_add() {
 
 # --- List command ---
 cmd_list() {
+    # Check for help option first
+    if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+        usage_list
+    fi
+
     # Check if inside a git repository/worktree
     if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
         echo "Error: Not inside a git repository or worktree." >&2
