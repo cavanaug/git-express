@@ -36,6 +36,11 @@ cmd_clone() {
             branch_to_checkout="$2"
             shift 2 # Consume -b and its argument
             ;;
+        -q|--quiet)
+            quiet_mode=true
+            clone_options+=("$1") # Pass -q to git clone as well
+            shift # Consume -q or --quiet
+            ;;
         --)
             # End of options marker. Add remaining args to clone_options.
             shift # Consume --
@@ -81,8 +86,11 @@ cmd_clone() {
     fi
 
     # --- Execution ---
-    echo "Cloning repository '$repository' into '$directory'..."
+    if [ "$quiet_mode" = false ]; then
+        echo "Cloning repository '$repository' into '$directory'..."
+    fi
     # Note: We don't pass -b to git clone here. We handle the branch checkout later.
+    # Pass collected options (including -q if present) to git clone
     git clone "${clone_options[@]}" "$repository" "$directory"
 
     # Navigate into the cloned repository (dynamic worktree)
@@ -92,10 +100,13 @@ cmd_clone() {
     if [ -n "$branch_to_checkout" ]; then
         # User specified a branch with -b
         branch_for_static_worktree="$branch_to_checkout"
-        echo "Setting up worktree for specified branch '$branch_for_static_worktree'..."
+        if [ "$quiet_mode" = false ]; then
+            echo "Setting up worktree for specified branch '$branch_for_static_worktree'..."
+        fi
         # Check if the branch exists locally or remotely
-        if ! git show-ref --verify --quiet "refs/heads/$branch_for_static_worktree" &&
-            ! git show-ref --verify --quiet "refs/remotes/origin/$branch_for_static_worktree"; then
+        # Use git rev-parse for potentially better scripting interface than show-ref
+        if ! git rev-parse --verify --quiet "refs/heads/$branch_for_static_worktree" > /dev/null 2>&1 && \
+           ! git rev-parse --verify --quiet "refs/remotes/origin/$branch_for_static_worktree" > /dev/null 2>&1; then
             echo "Error: Branch '$branch_for_static_worktree' not found locally or in origin remote." >&2
             # Clean up potentially incomplete clone? Maybe not, let user decide.
             popd >/dev/null
@@ -103,14 +114,19 @@ cmd_clone() {
         fi
     else
         # Determine the default branch name (handle main/master variations)
-        echo "Determining default branch..."
-        branch_for_static_worktree=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+        if [ "$quiet_mode" = false ]; then
+            echo "Determining default branch..."
+        fi
+        # Use git symbolic-ref --short for cleaner output if available, fallback otherwise
+        branch_for_static_worktree=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
         if [ -z "$branch_for_static_worktree" ]; then
             echo "Error: Could not determine the default branch." >&2
             popd >/dev/null
             return 1
         fi
-        echo "Setting up worktree for default branch '$branch_for_static_worktree'..."
+        if [ "$quiet_mode" = false ]; then
+            echo "Setting up worktree for default branch '$branch_for_static_worktree'..."
+        fi
     fi
 
     # Flatten the branch name (replace / with -)
@@ -120,13 +136,23 @@ cmd_clone() {
     # Construct the worktree directory name relative to the parent directory
     local worktree_dir="../${directory}.${flattened_branch_name}"
 
-    echo "Creating static worktree at '$worktree_dir' for branch '$branch_for_static_worktree'..."
+    if [ "$quiet_mode" = false ]; then
+        echo "Creating static worktree at '$worktree_dir' for branch '$branch_for_static_worktree'..."
+    fi
     # Use --force because the branch might already exist in the main worktree checkout (especially the default branch)
     # Or if -b specified a branch that's the same as the default HEAD checkout.
     # We also need to ensure the branch exists for `git worktree add`.
     # If the branch is remote, `git worktree add` can check it out directly.
-    if git worktree add --force "$worktree_dir" "$branch_for_static_worktree"; then
-        echo "Static worktree created successfully."
+    # Add --quiet to worktree add if quiet_mode is true
+    local worktree_add_opts=("--force")
+    if [ "$quiet_mode" = true ]; then
+        worktree_add_opts+=("--quiet")
+    fi
+
+    if git worktree add "${worktree_add_opts[@]}" "$worktree_dir" "$branch_for_static_worktree"; then
+        if [ "$quiet_mode" = false ]; then
+            echo "Static worktree created successfully."
+        fi
     else
         echo "Error: Failed to create worktree for branch '$branch_for_static_worktree'." >&2
         # Attempt to clean up? Maybe just report error.
@@ -137,12 +163,14 @@ cmd_clone() {
     # Return to the original directory
     popd >/dev/null
 
-    echo
-    echo "git-express clone complete for '$directory'."
-    # Extract the worktree directory name from the path
-    local worktree_name
-    worktree_name=$(basename "$worktree_dir")
-    echo "git-express worktree complete for $worktree_name"
+    if [ "$quiet_mode" = false ]; then
+        echo
+        echo "git-express clone complete for '$directory'."
+        # Extract the worktree directory name from the path
+        local worktree_name
+        worktree_name=$(basename "$worktree_dir")
+        echo "git-express worktree complete for $worktree_name"
+    fi
 }
 
 # --- Main script logic ---
