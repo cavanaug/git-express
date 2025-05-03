@@ -64,6 +64,7 @@ git-express move <worktree> <new-path>
 
 - Moves an existing static git-express worktree to a new location
 - Prevents renaming the worktree itself
+- Can be run from outside a git repository when providing a worktree path
 
 Options:
   -q, --quiet      Suppress informational messages.

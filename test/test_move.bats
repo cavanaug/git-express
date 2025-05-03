@@ -110,3 +110,28 @@ load 'test_common.bash'
     [[ ! "$output" == *"Worktree moved successfully."* ]]
     [[ ! "$output" == *"git-express move complete"* ]]
 }
+
+@test "move: works when run from outside a git repository" {
+    setup_cloned_repo
+    "$GIT_EXPRESS_PATH" add -q simple-branch
+    [ -d "../test-repo.simple-branch" ]
+    mkdir -p "../new-location"
+    
+    # Move to a directory outside the git repository
+    cd "$TEST_TEMP_DIR"
+    
+    # Run the move command from outside the git repository
+    run "$GIT_EXPRESS_PATH" move "test-repo.simple-branch" "new-location/test-repo.simple-branch"
+
+    echo "$output"
+    [ "$status" -eq 0 ]
+    # Check old directory is gone
+    [ ! -d "test-repo.simple-branch" ]
+    # Check new directory exists with content
+    [ -d "new-location/test-repo.simple-branch" ]
+    [ -f "new-location/test-repo.simple-branch/simple.txt" ]
+    # Check output
+    [[ "$output" == *"Moving worktree from 'test-repo.simple-branch' to 'new-location/test-repo.simple-branch'"* ]]
+    [[ "$output" == *"Worktree moved successfully."* ]]
+    [[ "$output" == *"git-express move complete"* ]]
+}
