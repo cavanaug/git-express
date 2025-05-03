@@ -22,6 +22,7 @@ load 'test_common.bash'
     # Check git knows it's gone (still in test-repo)
     git_output=$(git worktree list)
     [[ ! "$git_output" == *"test-repo.simple-branch"* ]]
+    # Check output using the original relative path
     [[ "$output" == *"Removing worktree '../test-repo.simple-branch'"* ]]
     [[ "$output" == *"Worktree removed successfully."* ]]
     [[ "$output" == *"git-express remove complete for test-repo.simple-branch"* ]]
@@ -55,7 +56,8 @@ load 'test_common.bash'
 
     echo "$output"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Warning: Worktree path '../test-repo.simple-branch' does not exist."* ]]
+    # Check for the corrected warning and removal messages
+    [[ "$output" == *"Warning: Worktree path '../test-repo.simple-branch' does not exist. Found stale registration."* ]]
     [[ "$output" == *"Removing worktree '../test-repo.simple-branch'"* ]]
     [[ "$output" == *"Worktree removed successfully."* ]]
 
@@ -104,6 +106,7 @@ load 'test_common.bash'
 
     echo "$output"
     [ "$status" -ne 0 ]
+    # Check output using the original relative path
     [[ "$output" == *"Removing worktree '../test-repo.simple-branch'"* ]] # Should still attempt
     [[ "$output" == *"Error: Failed to remove worktree '../test-repo.simple-branch'."* ]]
     # Verify directory still exists
@@ -121,6 +124,7 @@ load 'test_common.bash'
 
     echo "$output"
     [ "$status" -eq 0 ]
+    # Check output using the original relative path
     [[ "$output" == *"Force removing worktree '../test-repo.simple-branch'"* ]]
     [[ "$output" == *"Worktree removed successfully."* ]]
     # Verify directory is gone
@@ -138,6 +142,7 @@ load 'test_common.bash'
 
     echo "$output"
     [ "$status" -eq 0 ]
+    # Check output using the original relative path
     [[ "$output" == *"Force removing worktree '../test-repo.simple-branch'"* ]]
     [[ "$output" == *"Worktree removed successfully."* ]]
     # Verify directory is gone
@@ -168,5 +173,5 @@ load 'test_common.bash'
     [[ ! "$output" == *"Removing worktree"* ]]
     [[ ! "$output" == *"Worktree removed successfully."* ]]
     [[ ! "$output" == *"git-express remove complete"* ]]
-    # Check that git's output is also suppressed (git worktree remove is usually quiet on success anyway)
+    # git worktree remove itself doesn't have quiet mode, so no need to check its output suppression
 }

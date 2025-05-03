@@ -56,7 +56,8 @@ usage_remove() {
     echo "    -f, --force   Force removal even if the worktree has uncommitted changes."
     echo "    -q, --quiet   Suppress informational messages from git-express and underlying git commands."
     echo "    [opts]        Other options are passed directly to 'git worktree remove'."
-    exit 1 # Exit with error status for usage shown due to error
+    # Exit 0 when called for help, rely on calling function's exit status for errors
+    return 0
 }
 
 # Main usage function (called for general errors or top-level help)
@@ -392,9 +393,10 @@ cmd_add() {
 
 # --- Remove command ---
 cmd_remove() {
-    # Check for help option first
+    # Check for help option first and exit cleanly
     if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-        usage_remove
+        usage_remove # This function now exits 0 when called for help
+        exit 0 # Explicitly exit 0 after showing help
     fi
 
     local worktree_path_to_remove=""
@@ -468,25 +470,17 @@ cmd_remove() {
 
     # Get absolute path for the worktree to remove for reliable checks
     local abs_worktree_path_to_remove
-    # Check if path exists first before trying realpath
-    if [ ! -e "$worktree_path_to_remove" ]; then
-        # If path doesn't exist, git worktree remove might handle it, but let's check
-        # if it's listed in git's records anyway (in case of stale record).
-        # We still need to prevent removing the main worktree by *name* if passed.
-        # Let's try resolving the name against known worktrees first.
-        echo "Warning: Worktree path '$worktree_path_to_remove' does not exist. Checking if it's a registered worktree..." >&2
-        # We'll continue validation based on registered path below.
-        # Set abs_worktree_path_to_remove to something identifiable as non-existent for now.
-        abs_worktree_path_to_remove=""
-    else
+    # Attempt to resolve the path, but don't fail immediately if it doesn't exist (stale entry case)
+    local abs_worktree_path_to_remove=""
+    if [ -e "$worktree_path_to_remove" ]; then
         # Path exists, resolve it.
         abs_worktree_path_to_remove=$(realpath "$worktree_path_to_remove")
         if [ -z "$abs_worktree_path_to_remove" ]; then
-             echo "Error: Could not resolve absolute path for '$worktree_path_to_remove'." >&2
+             echo "Error: Could not resolve absolute path for existing path '$worktree_path_to_remove'." >&2
              return 1
         fi
 
-        # Prevent removing the main (dynamic) worktree by resolved path
+        # Prevent removing the main (dynamic) worktree by resolved path if it exists
         if [ "$abs_worktree_path_to_remove" == "$abs_main_worktree_path" ]; then
             echo "Error: Cannot remove the main (dynamic) worktree '$worktree_path_to_remove'." >&2
             echo "git-express only supports removing static worktrees." >&2
@@ -516,13 +510,21 @@ cmd_remove() {
                  abs_registered_path=""
             fi
 
-            # Match based on resolved absolute path if it exists
-            if [[ -n "$abs_worktree_path_to_remove" && "$abs_registered_path" == "$abs_worktree_path_to_remove" ]]; then
+            # Match based on resolved absolute path if the input path exists
+            if [[ -n "$abs_worktree_path_to_remove" && -n "$abs_registered_path" && "$abs_registered_path" == "$abs_worktree_path_to_remove" ]]; then
                 is_registered_worktree=true
                 registered_path_for_match="$registered_path" # Use the path git knows
                 break
-            # Match based on the input path string if the directory doesn't exist (stale entry case)
+            # Match based on the input path string if the input path *doesn't* exist (stale entry case)
+            # We compare the input string directly against the path git lists.
             elif [[ -z "$abs_worktree_path_to_remove" && "$registered_path" == "$worktree_path_to_remove" ]]; then
+                 # Check if the path listed by git actually exists - if it does, something is weird.
+                 if [ -e "$registered_path" ]; then
+                     echo "Warning: Input path '$worktree_path_to_remove' not found, but a registered worktree exists at '$registered_path'. Proceeding with '$registered_path'." >&2
+                 else
+                     # This is the expected stale case
+                     echo "Warning: Worktree path '$worktree_path_to_remove' does not exist. Found stale registration." >&2
+                 fi
                  is_registered_worktree=true
                  registered_path_for_match="$registered_path" # Use the path git knows
                  break
@@ -554,27 +556,35 @@ cmd_remove() {
         fi
     fi
 
-    # Use the path known by git for the remove command, especially for stale entries
+    # Use the path known by git for the remove command, especially for stale entries.
+    # Use the original user-provided path for messages.
     local target_path_for_git_cmd="$registered_path_for_match"
     local worktree_basename
-    worktree_basename=$(basename "$target_path_for_git_cmd")
+    worktree_basename=$(basename "$target_path_for_git_cmd") # Basename from git's path
+    local display_path="$worktree_path_to_remove" # Path for user messages
 
 
     # --- Execution ---
     if [ "$quiet_mode" = false ]; then
         if [ "$force_mode" = true ]; then
-            echo "Force removing worktree '$target_path_for_git_cmd'..."
+            echo "Force removing worktree '$display_path'..."
         else
-            echo "Removing worktree '$target_path_for_git_cmd'..."
+            echo "Removing worktree '$display_path'..."
         fi
     fi
 
-    # Add --quiet to git worktree remove if quiet_mode is true and not already present
-    local remove_cmd_options=("${remove_options[@]}") # Copy user options
-    if [ "$quiet_mode" = true ] && ! printf '%s\n' "${remove_cmd_options[@]}" | grep -q -- '--quiet'; then
-         remove_cmd_options+=("--quiet")
-    fi
-    # Ensure --force is present if force_mode is true and not already present
+    # Prepare options for git worktree remove. DO NOT pass --quiet.
+    local remove_cmd_options=()
+    # Copy only known/safe options from user input (currently just -f/--force)
+    # Or simply pass all non -q options through? Let's pass them through for now,
+    # but filter out -q/--quiet explicitly.
+    for opt in "${remove_options[@]}"; do
+        if [[ "$opt" != "-q" && "$opt" != "--quiet" ]]; then
+            remove_cmd_options+=("$opt")
+        fi
+    done
+
+    # Ensure --force is present if force_mode is true and not already passed by user
     if [ "$force_mode" = true ] && ! printf '%s\n' "${remove_cmd_options[@]}" | grep -q -e '-f' -e '--force'; then
          remove_cmd_options+=("--force")
     fi
@@ -585,10 +595,12 @@ cmd_remove() {
     if git worktree remove "${remove_cmd_options[@]}" "$target_path_for_git_cmd"; then
         if [ "$quiet_mode" = false ]; then
             echo "Worktree removed successfully."
+            # Use basename for the final confirmation message
             echo "git-express remove complete for $worktree_basename"
         fi
     else
-        echo "Error: Failed to remove worktree '$target_path_for_git_cmd'." >&2
+        # Use the display path in the error message
+        echo "Error: Failed to remove worktree '$display_path'." >&2
         # git worktree remove might fail if there are uncommitted changes (without --force)
         # or other issues.
         return 1
