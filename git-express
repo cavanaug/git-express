@@ -25,21 +25,33 @@ cmd_clone() {
     fi
 
     local repository="$1"
-    # All remaining arguments are passed directly to git clone
-    shift
-    local clone_args=("$@")
-    local directory="${clone_args[-1]}" # Potential directory is the last arg
+    shift # Remove repository from arguments
 
-    # If the last argument is intended as the directory, use it. Otherwise, derive from repo URL.
-    if [[ ! " ${clone_args[@]} " =~ " -- " ]] && [[ "$directory" != "$repository" ]] && [[ ! "$directory" =~ ^- ]]; then
-        # Last arg looks like a directory name, remove it from clone_args
-        unset 'clone_args[${#clone_args[@]}-1]'
-    else
-        # Derive directory name from repository URL
-        directory=$(basename "$repository" .git)
+    # All remaining arguments are passed directly to git clone
+    local clone_args=("$@")
+
+    # Derive default directory name from repository URL
+    local directory
+    directory=$(basename "$repository" .git)
+
+    # Check if the last argument is intended as the directory
+    # Check if clone_args is not empty first
+    if [ ${#clone_args[@]} -gt 0 ]; then
+        local last_arg="${clone_args[${#clone_args[@]}-1]}" # Get the last argument safely
+
+        # Check if the last argument is not an option (doesn't start with '-')
+        # and is not the same as the repository URL (unlikely after shift, but safe)
+        # and is not part of options after '--'
+        if [[ ! " ${clone_args[@]} " =~ " -- " ]] && [[ "$last_arg" != "$repository" ]] && [[ ! "$last_arg" =~ ^- ]]; then
+            # Assume last arg is the directory name
+            directory="$last_arg"
+            # Remove the directory from clone_args
+            unset 'clone_args[${#clone_args[@]}-1]'
+        fi
     fi
 
     echo "Cloning repository '$repository' into '$directory'..."
+    # Pass remaining clone_args (if any)
     git clone "$repository" "${clone_args[@]}" "$directory"
 
     # Navigate into the cloned repository
