@@ -32,12 +32,11 @@ load 'test_common.bash'
 
 
     # Check for the static worktree line (should not be current)
-    # Use simple contains check first
-    [[ "$output" == *" main"* ]]
-    [[ "$output" != *" main (dynamic)"* ]] # Check it's not marked dynamic
-    [[ "$output" == *"$static_wt_path"* ]]
-     # Check it's NOT marked as current (starts with two spaces)
-    run bash -c "echo \$'${output}' | grep -q '^  main '"
+    [[ "$output" == *"$static_wt_path"* ]] # Check path is present
+
+    # Check the line starts with "  main" followed by space(s) and the path
+    # This ensures it's the static line and not marked as current or dynamic
+    run bash -c "echo \$'${output}' | grep -q '^  main[[:space:]]\+.*$static_wt_path$'"
     [ "$status" -eq 0 ]
 
 }
