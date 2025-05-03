@@ -41,3 +41,33 @@ load 'test_common.bash'
     [[ "$output" == *"Error: Unknown command 'unknown-command'"* ]]
     [[ "$output" == *"Usage: git-express <command> [<args>]"* ]]
 }
+
+# --- Subcommand Usage Tests ---
+
+@test "usage: clone with no arguments shows usage" {
+    run "$GIT_EXPRESS_PATH" clone
+    [ "$status" -ne 0 ] # Should fail
+    [[ "$output" == *"Error: Missing repository argument for clone command."* ]]
+    [[ "$output" == *"Usage: git-express <command> [<args>]"* ]]
+}
+
+@test "usage: add with no arguments shows usage" {
+    # Need to be inside a repo for 'add' to pass initial check, but fail on args
+    setup_cloned_repo "usage-test-repo"
+    run "$GIT_EXPRESS_PATH" add
+    [ "$status" -ne 0 ] # Should fail
+    [[ "$output" == *"Error: Missing branch name for 'add' command."* ]]
+    [[ "$output" == *"Usage: git-express <command> [<args>]"* ]]
+}
+
+# Note: 'list' currently doesn't explicitly check for extra arguments.
+# It just runs 'git worktree list --porcelain' regardless.
+# If we wanted 'list' to fail with extra args, the script would need modification.
+# For now, we test that it runs successfully even with extra args.
+@test "usage: list with extra arguments still runs (doesn't show usage)" {
+    setup_cloned_repo "usage-test-repo"
+    run "$GIT_EXPRESS_PATH" list extra-arg
+    [ "$status" -eq 0 ] # Should succeed
+    [[ "$output" == *" main (dynamic)"* ]] # Check for expected list output
+    [[ ! "$output" == *"Usage: git-express <command> [<args>]"* ]] # Ensure usage is NOT shown
+}
