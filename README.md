@@ -73,11 +73,12 @@ Options:
 ### git-express remove - Remove a static worktree
 
 ```text
-git-express remove [opts] <worktree-path>
+git-express remove [opts] <branch-name | worktree-path>
 
-- Removes an existing static git-express worktree.
+- Removes an existing static git-express worktree, specified by branch name or path.
 - Uses 'git worktree remove' internally.
-- Prevents removing the (dynamic) worktree.
+- Prevents removing the main (dynamic) worktree.
+- If a branch name is given, it finds the corresponding static worktree path (e.g., ../<repo>.<branch>).
 
 Options:
   -f, --force      Force removal even if the worktree has uncommitted changes.

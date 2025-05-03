@@ -14,7 +14,7 @@ load 'test_common.bash'
     [[ "$output" == *"clone"* ]]
     [[ "$output" == *"add   [opts] <branch>"* ]]
     [[ "$output" == *"list"* ]]
-    [[ "$output" == *"remove [opts] <worktree-path>"* ]]
+    [[ "$output" == *"remove [opts] <branch-name | worktree-path>"* ]]
 }
 
 @test "git-express --help shows general usage and exits with status 1" {
@@ -26,7 +26,7 @@ load 'test_common.bash'
     [[ "$output" == *"clone"* ]]
     [[ "$output" == *"add   [opts] <branch>"* ]]
     [[ "$output" == *"list"* ]]
-    [[ "$output" == *"remove [opts] <worktree-path>"* ]]
+    [[ "$output" == *"remove [opts] <branch-name | worktree-path>"* ]]
 }
 
 @test "git-express -h shows general usage and exits with status 1" {
@@ -38,7 +38,7 @@ load 'test_common.bash'
     [[ "$output" == *"clone"* ]]
     [[ "$output" == *"add   [opts] <branch>"* ]]
     [[ "$output" == *"list"* ]]
-    [[ "$output" == *"remove [opts] <worktree-path>"* ]]
+    [[ "$output" == *"remove [opts] <branch-name | worktree-path>"* ]]
 }
 
 @test "git-express with unknown command shows error and usage" {
@@ -71,8 +71,8 @@ load 'test_common.bash'
     setup_cloned_repo "usage-test-repo"
     run "$GIT_EXPRESS_PATH" remove
     [ "$status" -ne 0 ] # Should fail
-    [[ "$output" == *"Error: Missing required <worktree-path> argument for 'remove' command."* ]]
-    [[ "$output" == *"Usage: git-express remove [opts] <worktree-path>"* ]]
+    [[ "$output" == *"Error: Missing required <branch-name | worktree-path> argument for 'remove' command."* ]]
+    [[ "$output" == *"Usage: git-express remove [opts] <branch-name | worktree-path>"* ]]
 }
 
 # Note: 'list' currently doesn't explicitly check for extra arguments.
@@ -128,15 +128,15 @@ load 'test_common.bash'
 @test "usage: remove --help shows remove usage" {
     run "$GIT_EXPRESS_PATH" remove --help
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Usage: git-express remove [opts] <worktree-path>"* ]]
-    [[ "$output" == *"Remove an existing static git-express worktree."* ]]
+    [[ "$output" == *"Usage: git-express remove [opts] <branch-name | worktree-path>"* ]]
+    [[ "$output" == *"Remove an existing static git-express worktree, specified by branch name or path."* ]]
 }
 
 @test "usage: remove -h shows remove usage" {
     run "$GIT_EXPRESS_PATH" remove -h
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Usage: git-express remove [opts] <worktree-path>"* ]]
-    [[ "$output" == *"Remove an existing static git-express worktree."* ]]
+    [[ "$output" == *"Usage: git-express remove [opts] <branch-name | worktree-path>"* ]]
+    [[ "$output" == *"Remove an existing static git-express worktree, specified by branch name or path."* ]]
 }
 
 @test "usage: list -h shows list usage" {
