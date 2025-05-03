@@ -307,9 +307,11 @@ setup_for_new_tests() {
     # Check that git's "Preparing worktree" messages are absent
     [[ ! "$output" == *"Preparing worktree"* ]]
     [[ ! "$output" == *"HEAD is now at"* ]]
-    # Check that git-express messages are still present
-    [[ "$output" == *"Creating worktree for branch 'my-quiet-branch'"* ]]
-    [[ "$output" == *"git-express new complete for test-repo.my-quiet-branch"* ]]
+    # Check that git-express informational messages are suppressed
+    [[ ! "$output" == *"Creating worktree for branch"* ]]
+    [[ ! "$output" == *"Branch 'my-quiet-branch' does not exist."* ]]
+    [[ ! "$output" == *"New branch 'my-quiet-branch' and worktree created."* ]]
+    [[ ! "$output" == *"git-express new complete"* ]]
 }
 
 @test "git-express clone: fails with non-existent branch using -b" {
