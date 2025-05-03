@@ -674,8 +674,8 @@ cmd_remove() {
 
 # --- List command ---
 cmd_list() {
-    # Check for help option first
-    if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    # Check for help option first (use default expansion to avoid unbound variable error)
+    if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
         usage_list
     fi
 
