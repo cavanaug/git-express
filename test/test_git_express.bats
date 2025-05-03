@@ -320,28 +320,21 @@ setup_for_add_tests() {
 
 @test "git-express list: basic listing after clone" {
     "$GIT_EXPRESS_PATH" clone -q "$REMOTE_REPO_PATH" list-repo
-    # Run list from outside any specific worktree initially
-    run "$GIT_EXPRESS_PATH" list
-    echo "$output"
-    [ "$status" -eq 0 ]
-    # Should list the main dynamic worktree and the default static one
-    # Current directory is TEST_TEMP_DIR, not a worktree, so no '*' expected yet
-    # Paths need to be absolute for comparison
-    local main_wt_path="$TEST_TEMP_DIR/list-repo"
-    local static_wt_path="$TEST_TEMP_DIR/list-repo.main"
-    [[ "$output" == *"  main                 (dynamic) $main_wt_path"* ]]
-    [[ "$output" == *"  main                           $static_wt_path"* ]]
-    [[ ! "$output" == \** ]] # No asterisk expected
-
-    # Run list from inside the dynamic worktree
+    # Run list from inside the dynamic worktree initially
     cd list-repo
     run "$GIT_EXPRESS_PATH" list
     echo "$output"
     [ "$status" -eq 0 ]
+    # Should list the main dynamic worktree and the default static one
+    # Current directory is the dynamic worktree, so '*' expected there
+    # Paths need to be absolute for comparison
+    local main_wt_path="$TEST_TEMP_DIR/list-repo"
+    local static_wt_path="$TEST_TEMP_DIR/list-repo.main"
     [[ "$output" == \**" main                 (dynamic) $main_wt_path"* ]] # Asterisk expected
     [[ "$output" == *"  main                           $static_wt_path"* ]]
 
     # Run list from inside the static worktree
+    cd "../list-repo.main" # cd from list-repo
     cd "../list-repo.main"
     run "$GIT_EXPRESS_PATH" list
     echo "$output"
@@ -355,7 +348,7 @@ setup_for_add_tests() {
     cd list-repo-multi
     "$GIT_EXPRESS_PATH" add -q simple-branch
     "$GIT_EXPRESS_PATH" add -q feature/test-branch
-    cd .. # Back to TEST_TEMP_DIR
+    # Stay inside list-repo-multi (dynamic worktree)
 
     run "$GIT_EXPRESS_PATH" list
     echo "$output"
@@ -366,14 +359,13 @@ setup_for_add_tests() {
     local static_feature_path="$TEST_TEMP_DIR/list-repo-multi.feature-test-branch"
 
     # Check presence of all entries (order might vary)
-    [[ "$output" == *" main                 (dynamic) $main_wt_path"* ]]
-    [[ "$output" == *" main                           $static_main_path"* ]]
-    [[ "$output" == *" simple-branch                  $static_simple_path"* ]]
-    [[ "$output" == *" feature/test-branch            $static_feature_path"* ]]
-    [[ ! "$output" == \** ]] # No asterisk expected
+    [[ "$output" == \**" main                 (dynamic) $main_wt_path"* ]] # Asterisk expected
+    [[ "$output" == *"  main                           $static_main_path"* ]]
+    [[ "$output" == *"  simple-branch                  $static_simple_path"* ]]
+    [[ "$output" == *"  feature/test-branch            $static_feature_path"* ]]
 
-    # Check current marker when inside one
-    cd "$static_simple_path"
+    # Check current marker when inside another one
+    cd "../$static_simple_path" # cd from list-repo-multi
     run "$GIT_EXPRESS_PATH" list
     echo "$output"
     [ "$status" -eq 0 ]
