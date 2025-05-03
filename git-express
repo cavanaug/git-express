@@ -466,88 +466,85 @@ cmd_remove() {
     fi
     local abs_main_worktree_path
     abs_main_worktree_path=$(realpath "$main_worktree_path")
+    local main_worktree_parent_dir
+    main_worktree_parent_dir=$(dirname "$main_worktree_path")
 
-
-    # Get absolute path for the worktree to remove for reliable checks
-    local abs_worktree_path_to_remove
-    # Attempt to resolve the path, but don't fail immediately if it doesn't exist (stale entry case)
-    local abs_worktree_path_to_remove=""
+    # Resolve the user input path using realpath -m to get a canonical path, even if it doesn't exist
+    local abs_input_path
+    abs_input_path=$(realpath -m "$worktree_path_to_remove")
+     if [ -z "$abs_input_path" ]; then
+        echo "Error: Could not resolve canonical path for input '$worktree_path_to_remove'." >&2
+        return 1
+    fi
+    local input_path_exists=false
     if [ -e "$worktree_path_to_remove" ]; then
-        # Path exists, resolve it.
-        abs_worktree_path_to_remove=$(realpath "$worktree_path_to_remove")
-        if [ -z "$abs_worktree_path_to_remove" ]; then
-             echo "Error: Could not resolve absolute path for existing path '$worktree_path_to_remove'." >&2
-             return 1
-        fi
+        input_path_exists=true
+    fi
 
-        # Prevent removing the main (dynamic) worktree by resolved path if it exists
-        if [ "$abs_worktree_path_to_remove" == "$abs_main_worktree_path" ]; then
+    # Prevent removing the main (dynamic) worktree by resolved path
+    if [ "$abs_input_path" == "$abs_main_worktree_path" ]; then
             echo "Error: Cannot remove the main (dynamic) worktree '$worktree_path_to_remove'." >&2
             echo "git-express only supports removing static worktrees." >&2
             return 1
         fi
     fi
 
-    # Verify that the source path corresponds to a registered worktree
-    # and prevent removing the main worktree even if specified differently
-    local is_registered_worktree=false
-    local registered_path_for_match="" # Store the path as known by git
+    # Loop through registered worktrees and compare canonical paths
+    local found_match=false
+    local target_path_for_git_cmd="" # Store the original path string from git list for the remove command
+    local is_stale_entry=false
+
     while IFS= read -r line; do
         if [[ "$line" == worktree* ]]; then
-            local registered_path
-            registered_path=$(echo "$line" | cut -d' ' -f2-)
+            local registered_path_str
+            registered_path_str=$(echo "$line" | cut -d' ' -f2-)
             local abs_registered_path
 
-            # Handle potential relative paths in git worktree list output
-            if [[ "$registered_path" != /* && -d "$main_worktree_path/../$registered_path" ]]; then
-                 # Resolve relative to parent of main worktree path
-                 abs_registered_path=$(realpath "$main_worktree_path/../$registered_path")
-            elif [[ -d "$registered_path" ]]; then
-                 # Assume absolute or relative to current dir if not relative to main's parent
-                 abs_registered_path=$(realpath "$registered_path")
+            # Resolve the path string from git list using realpath -m
+            if [[ "$registered_path_str" == /* ]]; then
+                # Already absolute
+                abs_registered_path=$(realpath -m "$registered_path_str")
             else
-                 # Path from git doesn't exist, skip trying to resolve it
-                 abs_registered_path=""
+                # Resolve relative to the main worktree's parent directory
+                abs_registered_path=$(realpath -m "$main_worktree_parent_dir/$registered_path_str")
             fi
 
-            # Match based on resolved absolute path if the input path exists
-            if [[ -n "$abs_worktree_path_to_remove" && -n "$abs_registered_path" && "$abs_registered_path" == "$abs_worktree_path_to_remove" ]]; then
-                is_registered_worktree=true
-                registered_path_for_match="$registered_path" # Use the path git knows
-                break
-            # Check for stale entry: input path doesn't exist, but matches a registered path string.
-            elif [[ ! -e "$worktree_path_to_remove" && "$registered_path" == "$worktree_path_to_remove" ]]; then
-                 # Path doesn't exist, but is registered. This is a stale entry.
-                 echo "Error: Worktree path '$worktree_path_to_remove' does not exist, but a registration was found." >&2
-                 echo "Use 'git-express prune' (not yet implemented) to remove stale worktree entries." >&2
-                 return 1 # Exit with error, do not proceed with removal
-            fi
-        # Check if the main worktree path itself was passed as argument (e.g., ".")
-        elif [[ "$line" == path* ]]; then
-             local main_path_from_git
-             main_path_from_git=$(echo "$line" | cut -d' ' -f2-)
-             local abs_main_path_from_git
-             abs_main_path_from_git=$(realpath "$main_path_from_git")
-             if [[ "$abs_main_path_from_git" == "$abs_worktree_path_to_remove" ]]; then
-                 # It matches the main worktree path from git's perspective
-                 echo "Error: Cannot remove the main (dynamic) worktree '$worktree_path_to_remove'." >&2
-                 echo "git-express only supports removing static worktrees." >&2
-                 return 1
+             if [ -z "$abs_registered_path" ]; then
+                 echo "Warning: Could not resolve canonical path for registered worktree '$registered_path_str'. Skipping." >&2
+                 continue
              fi
+
+            # Compare resolved paths
+            if [ "$abs_registered_path" == "$abs_input_path" ]; then
+                found_match=true
+                target_path_for_git_cmd="$registered_path_str" # Use the original string for git command
+
+                # Check if it's a stale entry (resolved paths match, but input path doesn't exist)
+                if [ "$input_path_exists" = false ]; then
+                    is_stale_entry=true
+                fi
+                break # Found our match
+            fi
         fi
     done < <(git worktree list --porcelain)
 
-    if [ "$is_registered_worktree" = false ]; then
-        # If the path existed but wasn't registered
-        if [[ -n "$abs_worktree_path_to_remove" ]]; then
-             echo "Error: '$worktree_path_to_remove' exists but is not a registered git worktree for this repository." >&2
-             return 1
-        # If the path didn't exist and wasn't registered
+    # --- Post-Loop Validation ---
+    if [ "$found_match" = false ]; then
+        if [ "$input_path_exists" = true ]; then
+            echo "Error: '$worktree_path_to_remove' exists but is not a registered git worktree for this repository." >&2
         else
-             echo "Error: Worktree path '$worktree_path_to_remove' does not exist and is not a registered worktree." >&2
-             return 1
+            echo "Error: Worktree path '$worktree_path_to_remove' does not exist and is not a registered worktree." >&2
         fi
+        return 1
     fi
+
+    if [ "$is_stale_entry" = true ]; then
+        echo "Error: Worktree path '$worktree_path_to_remove' does not exist, but a registration was found." >&2
+        echo "Use 'git-express prune' (not yet implemented) to remove stale worktree entries." >&2
+        return 1
+    fi
+
+    # If we reach here, we have a valid, existing, registered worktree to remove.
 
     # Use the path known by git for the remove command, especially for stale entries.
     # Use the original user-provided path for messages.
