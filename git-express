@@ -357,50 +357,55 @@ cmd_list() {
     # Use porcelain format for stable parsing
     local current_path=""
     local current_branch=""
-    local is_main_worktree=true # Assume first entry is main unless 'worktree' field seen
+    local is_dynamic=true # Flag to track if we are processing the first (dynamic) entry
 
     while IFS= read -r line; do
         if [[ "$line" == worktree* ]]; then
-            # Start of a new worktree entry
-            is_main_worktree=false # Subsequent entries are not the main one
+            # Start of a linked worktree entry. The *next* entry processed will be static.
+            # Note: This line itself provides the path for the linked worktree.
             current_path=$(echo "$line" | cut -d' ' -f2-)
+            # We don't set is_dynamic=false here yet, but when we *store* this entry later.
         elif [[ "$line" == path* ]]; then
-             # Path line for the main worktree (only if is_main_worktree is true)
-             if $is_main_worktree; then
+            # Path for the main worktree (only occurs once at the beginning)
+            if $is_dynamic; then # Only capture path if we expect the main worktree
                  current_path=$(echo "$line" | cut -d' ' -f2-)
-             fi
+            # else: ignore path lines within linked worktree blocks if they exist (unlikely)
+            fi
         elif [[ "$line" == HEAD* ]]; then
-            # HEAD commit, ignore for now
-            :
+            : # Ignore HEAD commit line
         elif [[ "$line" == branch* ]]; then
             current_branch=$(echo "$line" | cut -d' ' -f2-)
             # Clean up ref name (e.g., refs/heads/main -> main)
             current_branch=$(basename "$current_branch")
         elif [[ "$line" == "" && -n "$current_path" ]]; then
-            # End of a worktree entry (empty line)
+            # End of a block, store the collected data
 
-            # Determine if this is the current worktree
             local is_current=false
             if [ "$current_path" == "$current_worktree_path" ]; then
                 is_current=true
             fi
 
-            # Store parsed data - using a simple string format for the array
-            worktree_data+=("${current_path}|${current_branch}|${is_current}|${is_main_worktree}")
+            # Store data: path|branch|is_current|is_dynamic
+            # The value of is_dynamic correctly reflects the block we just finished processing.
+            worktree_data+=("${current_path}|${current_branch}|${is_current}|${is_dynamic}")
 
-            # Reset for next entry (path is reset by 'worktree' line)
+            # Reset for the next block
+            current_path=""
             current_branch=""
-            # is_main_worktree is handled by seeing the 'worktree' line
+            # IMPORTANT: After processing the first block (the dynamic one),
+            # set is_dynamic to false for all subsequent blocks.
+            is_dynamic=false
         fi
     done < <(git worktree list --porcelain)
 
-    # Process the last entry if the input didn't end with a blank line
+    # Process the very last entry if the input didn't end with a blank line (unlikely for porcelain)
      if [[ -n "$current_path" ]]; then
         local is_current=false
         if [ "$current_path" == "$current_worktree_path" ]; then
             is_current=true
         fi
-         worktree_data+=("${current_path}|${current_branch}|${is_current}|${is_main_worktree}")
+        # The is_dynamic flag will have the correct value from the loop state
+        worktree_data+=("${current_path}|${current_branch}|${is_current}|${is_dynamic}")
      fi
 
     # --- Format Output ---
