@@ -56,7 +56,7 @@ usage_remove() {
     echo "    -f, --force   Force removal even if the worktree has uncommitted changes."
     echo "    -q, --quiet   Suppress informational messages from git-express and underlying git commands."
     echo "    [opts]        Other options are passed directly to 'git worktree remove'."
-    exit 0
+    exit 1 # Exit with error status for usage shown due to error
 }
 
 # Main usage function (called for general errors or top-level help)

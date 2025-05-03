@@ -12,20 +12,15 @@ load 'test_common.bash'
     [ -d "../test-repo.simple-branch" ]
     [ -f "../test-repo.simple-branch/simple.txt" ]
 
-    # Remove the static worktree
-    # Need to run from within a worktree (e.g., the dynamic one)
-    pushd "test-repo" >/dev/null
+    # Remove the static worktree (setup_cloned_repo already cd'd into test-repo)
     run "$GIT_EXPRESS_PATH" remove "../test-repo.simple-branch"
-    popd >/dev/null
 
     echo "$output"
     [ "$status" -eq 0 ]
     # Check directory is gone
     [ ! -d "../test-repo.simple-branch" ]
-    # Check git knows it's gone
-    pushd "test-repo" >/dev/null
+    # Check git knows it's gone (still in test-repo)
     git_output=$(git worktree list)
-    popd >/dev/null
     [[ ! "$git_output" == *"test-repo.simple-branch"* ]]
     [[ "$output" == *"Removing worktree '../test-repo.simple-branch'"* ]]
     [[ "$output" == *"Worktree removed successfully."* ]]
@@ -35,9 +30,7 @@ load 'test_common.bash'
 @test "remove: fails if worktree path does not exist and is not registered" {
     setup_cloned_repo
 
-    pushd "test-repo" >/dev/null
     run "$GIT_EXPRESS_PATH" remove "../non-existent-worktree"
-    popd >/dev/null
 
     echo "$output"
     [ "$status" -ne 0 ]
@@ -53,14 +46,12 @@ load 'test_common.bash'
     rm -rf "../test-repo.simple-branch"
     [ ! -d "../test-repo.simple-branch" ]
 
-    # Check it's still listed by git
-    pushd "test-repo" >/dev/null
+    # Check it's still listed by git (still in test-repo)
     git_output_before=$(git worktree list)
     [[ "$git_output_before" == *"test-repo.simple-branch"* ]]
 
     # Run remove command
     run "$GIT_EXPRESS_PATH" remove "../test-repo.simple-branch"
-    popd >/dev/null
 
     echo "$output"
     [ "$status" -eq 0 ]
@@ -68,10 +59,8 @@ load 'test_common.bash'
     [[ "$output" == *"Removing worktree '../test-repo.simple-branch'"* ]]
     [[ "$output" == *"Worktree removed successfully."* ]]
 
-    # Check git knows it's gone
-    pushd "test-repo" >/dev/null
+    # Check git knows it's gone (still in test-repo)
     git_output_after=$(git worktree list)
-    popd >/dev/null
     [[ ! "$git_output_after" == *"test-repo.simple-branch"* ]]
 }
 
@@ -82,9 +71,7 @@ load 'test_common.bash'
     mkdir "../test-repo.fake-worktree"
     touch "../test-repo.fake-worktree/somefile.txt"
 
-    pushd "test-repo" >/dev/null
     run "$GIT_EXPRESS_PATH" remove "../test-repo.fake-worktree"
-    popd >/dev/null
 
     echo "$output"
     [ "$status" -ne 0 ]
@@ -97,10 +84,8 @@ load 'test_common.bash'
 @test "remove: fails if attempting to remove the main (dynamic) worktree" {
     setup_cloned_repo # Creates test-repo (dynamic) and test-repo.main (static)
 
-    # Try to remove the dynamic worktree ('test-repo') from within itself
-    pushd "test-repo" >/dev/null
+    # Try to remove the dynamic worktree ('test-repo') from within itself (already cd'd into it)
     run "$GIT_EXPRESS_PATH" remove "." # '.' refers to the dynamic worktree here
-    popd >/dev/null
 
     echo "$output"
     [ "$status" -ne 0 ]
@@ -115,9 +100,7 @@ load 'test_common.bash'
     # Make uncommitted changes
     echo "uncommitted change" >> "../test-repo.simple-branch/simple.txt"
 
-    pushd "test-repo" >/dev/null
     run "$GIT_EXPRESS_PATH" remove "../test-repo.simple-branch"
-    popd >/dev/null
 
     echo "$output"
     [ "$status" -ne 0 ]
@@ -134,9 +117,7 @@ load 'test_common.bash'
     # Make uncommitted changes
     echo "uncommitted change" >> "../test-repo.simple-branch/simple.txt"
 
-    pushd "test-repo" >/dev/null
     run "$GIT_EXPRESS_PATH" remove --force "../test-repo.simple-branch"
-    popd >/dev/null
 
     echo "$output"
     [ "$status" -eq 0 ]
@@ -153,9 +134,7 @@ load 'test_common.bash'
     # Make uncommitted changes
     echo "uncommitted change" >> "../test-repo.simple-branch/simple.txt"
 
-    pushd "test-repo" >/dev/null
     run "$GIT_EXPRESS_PATH" remove -f "../test-repo.simple-branch"
-    popd >/dev/null
 
     echo "$output"
     [ "$status" -eq 0 ]
@@ -179,10 +158,8 @@ load 'test_common.bash'
     "$GIT_EXPRESS_PATH" add -q simple-branch
     [ -d "../test-repo.simple-branch" ]
 
-    pushd "test-repo" >/dev/null
-    # Use --quiet for the remove command
+    # Use --quiet for the remove command (already in test-repo)
     run "$GIT_EXPRESS_PATH" remove -q "../test-repo.simple-branch"
-    popd >/dev/null
 
     echo "Output: $output" # Should be empty or only contain git errors if any
     [ "$status" -eq 0 ]
