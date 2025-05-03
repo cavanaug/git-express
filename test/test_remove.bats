@@ -41,7 +41,7 @@ load 'test_common.bash'
     [[ ! "$output" == *"Warning:"* ]]
 }
 
-@test "remove: successfully removes a stale worktree entry (path deleted manually)" {
+@test "remove: fails on stale entry and suggests prune" {
     setup_cloned_repo
     "$GIT_EXPRESS_PATH" add -q simple-branch
     [ -d "../test-repo.simple-branch" ]
@@ -57,16 +57,17 @@ load 'test_common.bash'
     run "$GIT_EXPRESS_PATH" remove "../test-repo.simple-branch"
 
     echo "$output"
-    [ "$status" -eq 0 ]
-    # Check for the specific warning for stale removal, then the removal message
-    [[ "$output" == *"Warning: Worktree path '../test-repo.simple-branch' does not exist. Removing stale registration."* ]]
-    [[ "$output" == *"Removing worktree '../test-repo.simple-branch'"* ]]
-    [[ "$output" == *"Worktree removed successfully."* ]]
-    [[ "$output" == *"git-express remove complete for test-repo.simple-branch"* ]] # Added completion message check
+    [ "$status" -ne 0 ] # Expect failure
+    # Check for the specific error message and prune suggestion
+    [[ "$output" == *"Error: Worktree path '../test-repo.simple-branch' does not exist, but a registration was found."* ]]
+    [[ "$output" == *"Use 'git-express prune' (not yet implemented) to remove stale worktree entries."* ]]
+    # Ensure no removal messages were printed
+    [[ ! "$output" == *"Removing worktree"* ]]
+    [[ ! "$output" == *"Worktree removed successfully."* ]]
 
-    # Check git knows it's gone (still in test-repo)
+    # Check git *still* lists the stale entry (still in test-repo)
     git_output_after=$(git worktree list)
-    [[ ! "$git_output_after" == *"test-repo.simple-branch"* ]]
+    [[ "$git_output_after" == *"test-repo.simple-branch"* ]]
 }
 
 

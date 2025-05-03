@@ -515,14 +515,12 @@ cmd_remove() {
                 is_registered_worktree=true
                 registered_path_for_match="$registered_path" # Use the path git knows
                 break
-            # Match based on the input path string if the input path *doesn't* exist (stale entry case)
-            # We compare the input string directly against the path git lists.
-            elif [[ -z "$abs_worktree_path_to_remove" && "$registered_path" == "$worktree_path_to_remove" ]]; then
-                 # Found a potential stale entry by matching the path string.
-                 # We will print the warning later, just before removal.
-                 is_registered_worktree=true
-                 registered_path_for_match="$registered_path" # Use the path git knows
-                 break
+            # Check for stale entry: input path doesn't exist, but matches a registered path string.
+            elif [[ ! -e "$worktree_path_to_remove" && "$registered_path" == "$worktree_path_to_remove" ]]; then
+                 # Path doesn't exist, but is registered. This is a stale entry.
+                 echo "Error: Worktree path '$worktree_path_to_remove' does not exist, but a registration was found." >&2
+                 echo "Use 'git-express prune' (not yet implemented) to remove stale worktree entries." >&2
+                 return 1 # Exit with error, do not proceed with removal
             fi
         # Check if the main worktree path itself was passed as argument (e.g., ".")
         elif [[ "$line" == path* ]]; then
@@ -560,17 +558,10 @@ cmd_remove() {
 
 
     # --- Execution ---
-    # Check if we are removing a stale entry (input path didn't exist but was registered)
-    local is_stale_removal=false
-    if [[ ! -e "$worktree_path_to_remove" && "$is_registered_worktree" = true ]]; then
-        is_stale_removal=true
-    fi
+    # Stale entry case is now handled above and causes an error exit.
+    # Proceed only if the path exists and is a registered worktree.
 
     if [ "$quiet_mode" = false ]; then
-        if [ "$is_stale_removal" = true ]; then
-             # Print specific warning for stale removal *before* the action message
-             echo "Warning: Worktree path '$display_path' does not exist. Removing stale registration." >&2
-        fi
         if [ "$force_mode" = true ]; then
             echo "Force removing worktree '$display_path'..."
         else
