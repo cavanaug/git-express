@@ -23,9 +23,10 @@ cmd_clone() {
     local directory=""
     local branch_to_checkout=""
     local clone_options=() # Options to pass to git clone
+    local quiet_mode=false # Flag for quiet operation
 
     # --- Argument Parsing ---
-    # Simplified parsing: Identify -b, repository, directory. Pass others to git clone.
+    # Simplified parsing: Identify -b, -q, repository, directory. Pass others to git clone.
     while [[ $# -gt 0 ]]; do
         case "$1" in
         -b)
