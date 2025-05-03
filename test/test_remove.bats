@@ -35,8 +35,10 @@ load 'test_common.bash'
 
     echo "$output"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"Warning: Worktree path '../non-existent-worktree' does not exist."* ]]
+    # Only expect the error message, no preceding warning for this case
     [[ "$output" == *"Error: Worktree path '../non-existent-worktree' does not exist and is not a registered worktree."* ]]
+    # Ensure the warning is NOT printed
+    [[ ! "$output" == *"Warning:"* ]]
 }
 
 @test "remove: successfully removes a stale worktree entry (path deleted manually)" {
@@ -56,10 +58,11 @@ load 'test_common.bash'
 
     echo "$output"
     [ "$status" -eq 0 ]
-    # Check for the corrected warning and removal messages
-    [[ "$output" == *"Warning: Worktree path '../test-repo.simple-branch' does not exist. Found stale registration."* ]]
+    # Check for the specific warning for stale removal, then the removal message
+    [[ "$output" == *"Warning: Worktree path '../test-repo.simple-branch' does not exist. Removing stale registration."* ]]
     [[ "$output" == *"Removing worktree '../test-repo.simple-branch'"* ]]
     [[ "$output" == *"Worktree removed successfully."* ]]
+    [[ "$output" == *"git-express remove complete for test-repo.simple-branch"* ]] # Added completion message check
 
     # Check git knows it's gone (still in test-repo)
     git_output_after=$(git worktree list)

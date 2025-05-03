@@ -518,13 +518,8 @@ cmd_remove() {
             # Match based on the input path string if the input path *doesn't* exist (stale entry case)
             # We compare the input string directly against the path git lists.
             elif [[ -z "$abs_worktree_path_to_remove" && "$registered_path" == "$worktree_path_to_remove" ]]; then
-                 # Check if the path listed by git actually exists - if it does, something is weird.
-                 if [ -e "$registered_path" ]; then
-                     echo "Warning: Input path '$worktree_path_to_remove' not found, but a registered worktree exists at '$registered_path'. Proceeding with '$registered_path'." >&2
-                 else
-                     # This is the expected stale case
-                     echo "Warning: Worktree path '$worktree_path_to_remove' does not exist. Found stale registration." >&2
-                 fi
+                 # Found a potential stale entry by matching the path string.
+                 # We will print the warning later, just before removal.
                  is_registered_worktree=true
                  registered_path_for_match="$registered_path" # Use the path git knows
                  break
@@ -565,7 +560,17 @@ cmd_remove() {
 
 
     # --- Execution ---
+    # Check if we are removing a stale entry (input path didn't exist but was registered)
+    local is_stale_removal=false
+    if [[ ! -e "$worktree_path_to_remove" && "$is_registered_worktree" = true ]]; then
+        is_stale_removal=true
+    fi
+
     if [ "$quiet_mode" = false ]; then
+        if [ "$is_stale_removal" = true ]; then
+             # Print specific warning for stale removal *before* the action message
+             echo "Warning: Worktree path '$display_path' does not exist. Removing stale registration." >&2
+        fi
         if [ "$force_mode" = true ]; then
             echo "Force removing worktree '$display_path'..."
         else
