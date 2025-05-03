@@ -103,6 +103,7 @@ usage() {
     echo "  list                                    List all git-express managed worktrees"
     echo "  move  [opts] <worktree> <new-path>      Move a static worktree to a new location"
     echo "  remove [opts] <branch-name | worktree-path> Remove a static worktree"
+    echo "  prune [opts]                           Remove stale worktree registrations"
     # Add other commands here later
     exit 1
 }
@@ -1179,6 +1180,9 @@ main() {
         ;;
     move)
         cmd_move "$@"
+        ;;
+    prune)
+        cmd_prune "$@"
         ;;
     --help | -h)
         usage
