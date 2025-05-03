@@ -417,18 +417,21 @@ cmd_list() {
         read -r path branch is_current is_dynamic <<< "$entry"
 
         local prefix="  "
-        local dynamic_marker=""
+        local display_branch="$branch"
 
         if [ "$is_current" = true ]; then
             prefix="* "
         fi
 
         if [ "$is_dynamic" = true ]; then
-            dynamic_marker=" (dynamic)"
+            # Append (dynamic) to the branch name for display
+            display_branch="${branch} (dynamic)"
         fi
 
-        # Use printf for consistent spacing (adjust width as needed)
-        printf "%s%-20s%s %s\n" "$prefix" "$branch" "$dynamic_marker" "$path"
+        # Use printf for consistent spacing. Adjust width as needed.
+        # The width should accommodate the longest possible branch name + " (dynamic)".
+        # Let's increase it slightly, e.g., to 30.
+        printf "%s%-30s %s\n" "$prefix" "$display_branch" "$path"
 
     done
     IFS="$OLD_IFS" # Restore original IFS
