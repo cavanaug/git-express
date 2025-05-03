@@ -100,6 +100,9 @@ main() {
         clone)
             cmd_clone "$@"
             ;;
+        --help|-h)
+            usage
+            ;;
         # Add other command cases here
         *)
             echo "Error: Unknown command '$command'"
