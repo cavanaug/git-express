@@ -23,6 +23,7 @@ load 'test_common.bash'
     git_output=$(git worktree list)
     [[ ! "$git_output" == *"test-repo.simple-branch"* ]]
     # Check output using the original relative path
+    [[ ! "$output" == *"Interpreting"* ]] # Heuristic message should be gone
     [[ "$output" == *"Removing worktree '../test-repo.simple-branch'"* ]]
     [[ "$output" == *"Worktree removed successfully."* ]]
     [[ "$output" == *"git-express remove complete for test-repo.simple-branch"* ]]
@@ -58,8 +59,8 @@ load 'test_common.bash'
 
     echo "$output"
     [ "$status" -ne 0 ] # Expect failure
-    # Check for the specific error message and prune suggestion
-    [[ "$output" == *"Error: Worktree path '../test-repo.simple-branch' (derived from '../test-repo.simple-branch') does not exist, but a registration was found."* ]]
+    # Check for the specific error message and prune suggestion (uses the path that was checked)
+    [[ "$output" == *"Error: Worktree path '../test-repo.simple-branch' does not exist, but a registration was found."* ]]
     [[ "$output" == *"Use 'git-express prune' (not yet implemented) to remove stale worktree entries."* ]]
     # Ensure no removal messages were printed
     [[ ! "$output" == *"Removing worktree"* ]]
@@ -81,7 +82,9 @@ load 'test_common.bash'
 
     echo "$output"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"Error: '../test-repo.fake-worktree' exists but is not a registered git worktree for this repository."* ]]
+    # Check the combined error message
+    [[ "$output" == *"Error: Could not find a registered worktree matching '../test-repo.fake-worktree' (checked as path and branch name)."* ]]
+    [[ "$output" == *"Path '../test-repo.fake-worktree' exists but is not a registered worktree."* ]]
     # Cleanup the fake directory
     rm -rf "../test-repo.fake-worktree"
 }
@@ -111,6 +114,7 @@ load 'test_common.bash'
     echo "$output"
     [ "$status" -ne 0 ]
     # Check output using the original relative path
+    [[ ! "$output" == *"Interpreting"* ]]
     [[ "$output" == *"Removing worktree '../test-repo.simple-branch'"* ]] # Should still attempt
     [[ "$output" == *"Error: Failed to remove worktree '../test-repo.simple-branch'."* ]]
     # Verify directory still exists
@@ -129,6 +133,7 @@ load 'test_common.bash'
     echo "$output"
     [ "$status" -eq 0 ]
     # Check output using the original relative path
+    [[ ! "$output" == *"Interpreting"* ]]
     [[ "$output" == *"Force removing worktree '../test-repo.simple-branch'"* ]]
     [[ "$output" == *"Worktree removed successfully."* ]]
     # Verify directory is gone
@@ -147,6 +152,7 @@ load 'test_common.bash'
     echo "$output"
     [ "$status" -eq 0 ]
     # Check output using the original relative path
+    [[ ! "$output" == *"Interpreting"* ]]
     [[ "$output" == *"Force removing worktree '../test-repo.simple-branch'"* ]]
     [[ "$output" == *"Worktree removed successfully."* ]]
     # Verify directory is gone
@@ -174,6 +180,7 @@ load 'test_common.bash'
     [ "$status" -eq 0 ]
     [ ! -d "../test-repo.simple-branch" ]
     # Check that git-express informational output is suppressed
+    [[ ! "$output" == *"Interpreting"* ]]
     [[ ! "$output" == *"Removing worktree"* ]]
     [[ ! "$output" == *"Worktree removed successfully."* ]]
     [[ ! "$output" == *"git-express remove complete"* ]]
@@ -197,8 +204,8 @@ load 'test_common.bash'
     # Check git knows it's gone
     git_output=$(git worktree list)
     [[ ! "$git_output" == *"test-repo.simple-branch"* ]]
-    # Check output - should show interpretation and derived path
-    [[ "$output" == *"Interpreting 'simple-branch' as a branch name."* ]]
+    # Check output - should show the derived path in the removal message
+    [[ "$output" == *"Input 'simple-branch' did not match a registered worktree path. Trying as branch name..."* ]]
     [[ "$output" == *"Removing worktree '../test-repo.simple-branch'"* ]]
     [[ "$output" == *"Worktree removed successfully."* ]]
     [[ "$output" == *"git-express remove complete for test-repo.simple-branch"* ]]
@@ -217,7 +224,8 @@ load 'test_common.bash'
     [ ! -d "../test-repo.feature-test-branch" ]
     git_output=$(git worktree list)
     [[ ! "$git_output" == *"test-repo.feature-test-branch"* ]]
-    [[ "$output" == *"Interpreting 'feature/test-branch' as a branch name."* ]]
+    # Check output - should show the derived path in the removal message
+    [[ "$output" == *"Input 'feature/test-branch' did not match a registered worktree path. Trying as branch name..."* ]]
     [[ "$output" == *"Removing worktree '../test-repo.feature-test-branch'"* ]]
     [[ "$output" == *"git-express remove complete for test-repo.feature-test-branch"* ]]
 }
@@ -228,44 +236,29 @@ load 'test_common.bash'
     run "$GIT_EXPRESS_PATH" remove non-existent-branch
     echo "$output"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"Interpreting 'non-existent-branch' as a branch name."* ]]
-    # It might fail because the derived path doesn't exist AND isn't registered,
-    # or because no worktree is found for the branch.
-    [[ "$output" == *"Error: No registered worktree found for branch 'non-existent-branch'."* ]] || \
-    [[ "$output" == *"Error: Worktree path '../test-repo.non-existent-branch' does not exist and is not a registered worktree."* ]]
+    [[ "$output" == *"Input 'non-existent-branch' did not match a registered worktree path. Trying as branch name..."* ]]
+    # Check the combined error message
+    [[ "$output" == *"Error: Could not find a registered worktree matching 'non-existent-branch' (checked as path and branch name)."* ]]
+    [[ "$output" == *"Path 'non-existent-branch' does not exist."* ]]
+    [[ "$output" == *"Branch 'non-existent-branch' does not exist."* ]]
 }
 
 @test "remove: fails if branch exists but has no corresponding static worktree" {
     setup_cloned_repo
     # 'main' branch exists, but its static worktree is test-repo.main
     # Let's try removing 'main' by name - it should fail as it doesn't map to a removable static worktree
-    # (The dynamic worktree isn't removable by this command)
+    # (The dynamic worktree isn't removable by this command, and 'main' doesn't map to a removable static worktree)
     run "$GIT_EXPRESS_PATH" remove main
     echo "$output"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"Interpreting 'main' as a branch name."* ]]
-    # It should fail because the derived path ../test-repo.main exists and is registered,
-    # but the branch associated with that path in git worktree list might be empty or different
-    # if the user checked out something else there (though gx add forces it).
-    # More likely, the loop finds test-repo.main, but the check prevents removing the main worktree path.
-    # Let's refine the expected error based on the implementation:
-    # The code derives ../test-repo.main, resolves it, finds it's registered,
-    # then checks if the *resolved path* matches the main worktree path. It shouldn't.
-    # It should then proceed to try and remove ../test-repo.main.
-    # Let's re-run the test after applying changes to see the actual error.
+    [[ "$output" == *"Input 'main' did not match a registered worktree path. Trying as branch name..."* ]]
+    # It should find the derived path ../test-repo.main, find it's registered, but fail because it's not the main worktree path.
+    # The error should indicate no *removable* static worktree was found.
+    [[ "$output" == *"Error: Could not find a registered worktree matching 'main' (checked as path and branch name)."* ]]
+    [[ "$output" == *"Branch 'main' exists, but no corresponding static worktree was found."* ]]
 
-    # --- Re-evaluation after seeing potential implementation details ---
-    # The code derives ../test-repo.main.
-    # It resolves this path.
-    # It loops through `git worktree list --porcelain`.
-    # It finds the entry for ../test-repo.main.
-    # It compares the resolved path of ../test-repo.main with the resolved path of the input ('main' -> '../test-repo.main'). They match.
-    # It finds the registration.
-    # It checks if the path exists (it does).
-    # It proceeds to `git worktree remove ../test-repo.main`. This should succeed.
-
-    # --- Let's test removing a branch that exists but whose worktree was manually deleted (stale by branch name) ---
-    setup_cloned_repo # Creates test-repo and test-repo.main
+    # --- Test removing a branch that exists but whose worktree was manually deleted (stale by branch name) ---
+    # setup_cloned_repo is already done above
     "$GIT_EXPRESS_PATH" add -q simple-branch
     [ -d "../test-repo.simple-branch" ]
     rm -rf "../test-repo.simple-branch" # Manually delete dir
@@ -275,10 +268,9 @@ load 'test_common.bash'
     run "$GIT_EXPRESS_PATH" remove simple-branch
     echo "$output"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"Interpreting 'simple-branch' as a branch name."* ]]
-    [[ "$output" == *"Error: Worktree path '../test-repo.simple-branch' (derived from 'simple-branch') does not exist, but a registration was found."* ]]
+    [[ "$output" == *"Input 'simple-branch' did not match a registered worktree path. Trying as branch name..."* ]]
+    [[ "$output" == *"Error: Worktree path '../test-repo.simple-branch' does not exist, but a registration was found."* ]]
     [[ "$output" == *"Use 'git-express prune' (not yet implemented) to remove stale worktree entries."* ]]
-
 }
 
 @test "remove: quiet mode by branch name suppresses informational messages" {

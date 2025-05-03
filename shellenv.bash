@@ -6,8 +6,8 @@
 # It provides helper functions for navigating git-express worktrees.
 
 # Function to change directory to the worktree associated with a specific branch.
-# Usage: gx-cw <branch-name>
-gx-cw() {
+# Usage: gx-cd <branch-name>
+gx-cd() {
     local target_branch="$1"
     local specific_worktree_path="" # Path matching <repo>.${flattened_branch}
     local main_worktree_path=""     # Path of the main worktree (dynamic view)
@@ -15,7 +15,7 @@ gx-cw() {
     local current_dir=$(pwd)        # Remember current directory in case of failure
 
     if [ -z "$target_branch" ]; then
-        echo "Usage: gx-cw <branch-name | />" >&2
+        echo "Usage: gx-cd <branch-name | />" >&2
         return 1
     fi
 
@@ -28,12 +28,12 @@ gx-cw() {
     # Get main worktree path early - needed for '/' case and fallback
     main_worktree_path=$(git rev-parse --show-toplevel)
     if [ -z "$main_worktree_path" ]; then
-         echo "Error: Could not determine main worktree path." >&2
-         return 1
+        echo "Error: Could not determine main worktree path." >&2
+        return 1
     fi
 
     # Handle special case: cd to main worktree (dynamic view)
-    if [ "$target_branch" == "/" ]; then
+    if [ "$target_branch" == "-" ]; then
         if [ -d "$main_worktree_path" ]; then
             printf "cd %q\n" "$main_worktree_path"
             return 0
@@ -52,7 +52,7 @@ gx-cw() {
     local expected_suffix=".${flattened_target_branch}"
 
     # Get main worktree branch (already have path)
-    main_worktree_branch=$(git -C "$main_worktree_path" branch --show-current 2>/dev/null || true)
+    main_worktree_branch=$(git -C "$main_worktree_path" branch --show-current 2> /dev/null || true)
 
     # Use git worktree list and parse the output
     # Format: <path> <short-commit> <branch>
@@ -79,7 +79,7 @@ gx-cw() {
             specific_worktree_path="$path"
             # No need to break here, but we store the path. If loop continues, it might find another match (unlikely with gx rules).
             # Let's keep the break for efficiency, assuming the first match is the only one we need.
-             break # Found the best match, no need to check further
+            break # Found the best match, no need to check further
         fi
     done
     IFS="$OLD_IFS" # Restore original IFS
@@ -101,14 +101,14 @@ gx-cw() {
     # Priority 2: Target branch is checked out in the main worktree (dynamic view)
     # This check is only relevant if no specific static worktree was found above.
     if [ "$main_worktree_branch" == "$target_branch" ]; then
-         if [ -d "$main_worktree_path" ]; then
-             printf "cd %q\n" "$main_worktree_path"
-             return 0
-         else
+        if [ -d "$main_worktree_path" ]; then
+            printf "cd %q\n" "$main_worktree_path"
+            return 0
+        else
             # Should not happen if main_worktree_path was determined correctly
             echo "Error: Main worktree directory does not exist: $main_worktree_path" >&2
             return 1
-         fi
+        fi
     fi
 
     # Error: No suitable worktree found
@@ -120,6 +120,3 @@ gx-cw() {
 # my-other-function() {
 #   echo "Another function"
 # }
-
-# You can add aliases here too if preferred:
-# alias gcw='gx-cw'
