@@ -119,8 +119,8 @@ teardown() {
     [ "$status" -eq 1 ]
     [[ "$output" == *"Usage: git-express <command> [<args>]"* ]]
     [[ "$output" == *"Commands:"* ]]
-    [[ "$output" == *"clone [opts] [-b <branch>] <repo> [<dir>]"* ]] # Updated check
-    [[ "$output" == *"new   [opts] <branch>"* ]] # Updated check
+    [[ "$output" == *"clone [opts] [-b <branch>] <repo> [<dir>]"* ]]
+    [[ "$output" == *"add   [opts] <branch>"* ]] # Updated check
 }
 
 
@@ -210,21 +210,21 @@ teardown() {
 }
 
 
-# --- New Command Tests ---
+# --- Add Command Tests ---
 
-# Helper function to setup a basic cloned repo for 'new' tests
-setup_for_new_tests() {
+# Helper function to setup a basic cloned repo for 'add' tests
+setup_for_add_tests() {
     "$GIT_EXPRESS_PATH" clone -q "$REMOTE_REPO_PATH" test-repo
-    # Need to be inside a worktree for 'new' command to work
+    # Need to be inside a worktree for 'add' command to work
     cd test-repo
     # Ensure main static worktree exists from clone
     [ -d "../test-repo.main" ]
 }
 
-@test "git-express new: create worktree for existing branch" {
-    setup_for_new_tests
+@test "git-express add: create worktree for existing branch" {
+    setup_for_add_tests
     # 'simple-branch' exists in the remote repo setup
-    run "$GIT_EXPRESS_PATH" new simple-branch
+    run "$GIT_EXPRESS_PATH" add simple-branch
     echo "$output"
     [ "$status" -eq 0 ]
     [ -d "../test-repo.simple-branch" ]
@@ -233,12 +233,12 @@ setup_for_new_tests() {
     [ "$branch_in_static" = "simple-branch" ]
     [[ "$output" == *"Creating worktree for branch 'simple-branch'"* ]]
     [[ "$output" == *"Worktree created for existing branch 'simple-branch'."* ]]
-    [[ "$output" == *"git-express new complete for test-repo.simple-branch"* ]]
+    [[ "$output" == *"git-express add complete for test-repo.simple-branch"* ]]
 }
 
-@test "git-express new: create worktree and new branch" {
-    setup_for_new_tests
-    run "$GIT_EXPRESS_PATH" new my-new-feature
+@test "git-express add: create worktree and new branch" {
+    setup_for_add_tests
+    run "$GIT_EXPRESS_PATH" add my-new-feature
     echo "$output"
     [ "$status" -eq 0 ]
     [ -d "../test-repo.my-new-feature" ]
@@ -252,12 +252,12 @@ setup_for_new_tests() {
     [[ "$output" == *"Creating worktree for branch 'my-new-feature'"* ]]
     [[ "$output" == *"Branch 'my-new-feature' does not exist. Creating new branch and worktree..."* ]]
     [[ "$output" == *"New branch 'my-new-feature' and worktree created."* ]]
-    [[ "$output" == *"git-express new complete for test-repo.my-new-feature"* ]]
+    [[ "$output" == *"git-express add complete for test-repo.my-new-feature"* ]]
 }
 
-@test "git-express new: create worktree for new branch with slash" {
-    setup_for_new_tests
-    run "$GIT_EXPRESS_PATH" new feature/another-one
+@test "git-express add: create worktree for new branch with slash" {
+    setup_for_add_tests
+    run "$GIT_EXPRESS_PATH" add feature/another-one
     echo "$output"
     [ "$status" -eq 0 ]
     [ -d "../test-repo.feature-another-one" ]
@@ -266,41 +266,41 @@ setup_for_new_tests() {
     [ "$branch_in_static" = "feature/another-one" ]
     git show-ref --verify --quiet "refs/heads/feature/another-one"
     [ "$?" -eq 0 ]
-    [[ "$output" == *"git-express new complete for test-repo.feature-another-one"* ]]
+    [[ "$output" == *"git-express add complete for test-repo.feature-another-one"* ]]
 }
 
-@test "git-express new: fails if branch name is missing" {
-    setup_for_new_tests
-    run "$GIT_EXPRESS_PATH" new
+@test "git-express add: fails if branch name is missing" {
+    setup_for_add_tests
+    run "$GIT_EXPRESS_PATH" add
     echo "$output"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"Error: Missing branch name for 'new' command."* ]]
+    [[ "$output" == *"Error: Missing branch name for 'add' command."* ]]
 }
 
-@test "git-express new: fails if worktree directory already exists" {
-    setup_for_new_tests
+@test "git-express add: fails if worktree directory already exists" {
+    setup_for_add_tests
     # Create for 'simple-branch' first
-    "$GIT_EXPRESS_PATH" new -q simple-branch
+    "$GIT_EXPRESS_PATH" add -q simple-branch
     [ -d "../test-repo.simple-branch" ]
     # Try to create it again
-    run "$GIT_EXPRESS_PATH" new simple-branch
+    run "$GIT_EXPRESS_PATH" add simple-branch
     echo "$output"
     [ "$status" -ne 0 ]
     [[ "$output" == *"Error: Target worktree directory '../test-repo.simple-branch' already exists."* ]]
 }
 
-@test "git-express new: fails if not inside a git repository" {
+@test "git-express add: fails if not inside a git repository" {
     # Run from the main test temp dir, not inside a repo clone
-    run "$GIT_EXPRESS_PATH" new some-branch
+    run "$GIT_EXPRESS_PATH" add some-branch
     echo "$output"
     [ "$status" -ne 0 ]
     [[ "$output" == *"Error: Not inside a git repository or worktree."* ]]
 }
 
-@test "git-express new: passes options to git worktree add (e.g., --quiet)" {
-    setup_for_new_tests
+@test "git-express add: passes options to git worktree add (e.g., --quiet)" {
+    setup_for_add_tests
     # Use --quiet, which should suppress git's output during worktree add
-    run "$GIT_EXPRESS_PATH" new --quiet my-quiet-branch
+    run "$GIT_EXPRESS_PATH" add --quiet my-quiet-branch
     echo "Output: $output" # Should only contain git-express messages
     [ "$status" -eq 0 ]
     [ -d "../test-repo.my-quiet-branch" ]
@@ -311,7 +311,7 @@ setup_for_new_tests() {
     [[ ! "$output" == *"Creating worktree for branch"* ]]
     [[ ! "$output" == *"Branch 'my-quiet-branch' does not exist."* ]]
     [[ ! "$output" == *"New branch 'my-quiet-branch' and worktree created."* ]]
-    [[ ! "$output" == *"git-express new complete"* ]]
+    [[ ! "$output" == *"git-express add complete"* ]]
 }
 
 @test "git-express clone: fails with non-existent branch using -b" {
@@ -334,8 +334,8 @@ setup_for_new_tests() {
     [ "$status" -eq 1 ]
     [[ "$output" == *"Usage: git-express <command> [<args>]"* ]]
     [[ "$output" == *"Commands:"* ]]
-    [[ "$output" == *"clone [opts] [-b <branch>] <repo> [<dir>]"* ]] # Updated check
-    [[ "$output" == *"new   [opts] <branch>"* ]] # Updated check
+    [[ "$output" == *"clone [opts] [-b <branch>] <repo> [<dir>]"* ]]
+    [[ "$output" == *"add   [opts] <branch>"* ]] # Updated check
 }
 
 @test "git-express -h shows usage and exits with status 1" {
@@ -343,8 +343,8 @@ setup_for_new_tests() {
     [ "$status" -eq 1 ]
     [[ "$output" == *"Usage: git-express <command> [<args>]"* ]]
     [[ "$output" == *"Commands:"* ]]
-    [[ "$output" == *"clone [opts] [-b <branch>] <repo> [<dir>]"* ]] # Updated check
-    [[ "$output" == *"new   [opts] <branch>"* ]] # Updated check
+    [[ "$output" == *"clone [opts] [-b <branch>] <repo> [<dir>]"* ]]
+    [[ "$output" == *"add   [opts] <branch>"* ]] # Updated check
 }
 
 @test "git-express with unknown command shows error and usage" {

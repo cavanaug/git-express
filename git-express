@@ -13,7 +13,7 @@ usage() {
     echo ""
     echo "Commands:"
     echo "  clone [opts] [-b <branch>] <repo> [<dir>]  Clone repo and setup worktrees"
-    echo "  new   [opts] <branch>                   Create worktree for <branch>, create branch if needed"
+    echo "  add   [opts] <branch>                   Create worktree for <branch>, create branch if needed"
     # Add other commands here later
     exit 1
 }
@@ -187,8 +187,8 @@ cmd_clone() {
 }
 
 
-# --- New command ---
-cmd_new() {
+# --- Add command ---
+cmd_add() {
     local branch_name=""
     local worktree_options=() # Options to pass to git worktree add
     local quiet_mode=false    # Flag for quiet operation (though less output in 'new' anyway)
@@ -234,7 +234,7 @@ cmd_new() {
     # --- Validation ---
     # Check if branch name was provided
     if [ -z "$branch_name" ]; then
-        echo "Error: Missing branch name for 'new' command." >&2
+        echo "Error: Missing branch name for 'add' command." >&2
         usage
     fi
 
@@ -320,7 +320,7 @@ cmd_new() {
     fi
 
     if [ "$quiet_mode" = false ]; then
-        echo "git-express new complete for $repo_name.$flattened_branch_name"
+        echo "git-express add complete for $repo_name.$flattened_branch_name"
     fi
 }
 
@@ -338,8 +338,8 @@ main() {
     clone)
         cmd_clone "$@"
         ;;
-    new)
-        cmd_new "$@"
+    add)
+        cmd_add "$@"
         ;;
     --help | -h)
         usage

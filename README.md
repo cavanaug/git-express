@@ -27,15 +27,15 @@ git-express clone [options] [-b <branch>] <repository> [<directory>]
 Note: All [options] passed to git-express clone will be passed internally to git clone unchecked and may break things, use judiciously.
 ```
 
-### git-express new - Create a worktree and create new branch if needed
+### git-express add - Create a worktree and create new branch if needed
 
 ```text
-git-express new <branch>
+git-express add [opts] <branch>
 
 - Creates git worktree for <branch> using standard naming of <repository-name>.<branch-flattened>
 - If the <branch> does not exist, it will be created as a new branch
 
-Note: All [options] passed to git-express new will be passed internally to git worktree add unchecked and may break things, use judiciously.
+Note: All [options] passed to git-express add will be passed internally to git worktree add unchecked and may break things, use judiciously.
 ```
 
 ## Directory Layout/Structure
