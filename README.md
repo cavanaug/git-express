@@ -38,6 +38,17 @@ git-express add [opts] <branch>
 Note: All [options] passed to git-express add will be passed internally to git worktree add unchecked and may break things, use judiciously.
 ```
 
+### git-express list - List worktrees
+
+```text
+git-express list
+
+- Lists all worktrees associated with the current repository.
+- Marks the current worktree with '*'.
+- Marks the dynamic worktree with '(dynamic)'.
+- Output format: [* ]<branch> [(dynamic)] <path>
+```
+
 ## Directory Layout/Structure
 
 This is an example directory layout for worktrees for 2 repos.

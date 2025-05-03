@@ -14,6 +14,7 @@ usage() {
     echo "Commands:"
     echo "  clone [opts] [-b <branch>] <repo> [<dir>]  Clone repo and setup worktrees"
     echo "  add   [opts] <branch>                   Create worktree for <branch>, create branch if needed"
+    echo "  list                                    List all git-express managed worktrees"
     # Add other commands here later
     exit 1
 }
@@ -325,6 +326,110 @@ cmd_add() {
 }
 
 
+# --- List command ---
+cmd_list() {
+    # Check if inside a git repository/worktree
+    if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+        echo "Error: Not inside a git repository or worktree." >&2
+        return 1
+    fi
+
+    # Get the absolute path of the current worktree's top-level directory
+    local current_worktree_path
+    current_worktree_path=$(git rev-parse --show-toplevel)
+    if [ -z "$current_worktree_path" ]; then
+        echo "Error: Could not determine the current worktree path." >&2
+        return 1
+    fi
+
+    # Get the main worktree path (where .git directory resides or points to)
+    # For regular repos, this is the same as toplevel. For worktrees, it's different.
+    # We need the *original* repo path to identify the dynamic view.
+    # Let's assume the dynamic view is the one listed by `git worktree list`
+    # that doesn't have a separate .git file but contains the main .git dir.
+    # A simpler heuristic for git-express: the dynamic view is the one whose
+    # basename matches the repo name derived from the static worktree names.
+    # Or, more reliably: parse `git worktree list --porcelain`.
+
+    local main_worktree_path="" # Path of the main/dynamic worktree
+    local worktree_data=()      # Array to hold parsed data {path, branch, is_current, is_dynamic}
+
+    # Use porcelain format for stable parsing
+    local current_path=""
+    local current_branch=""
+    local is_main_worktree=true # Assume first entry is main unless 'worktree' field seen
+
+    while IFS= read -r line; do
+        if [[ "$line" == worktree* ]]; then
+            # Start of a new worktree entry
+            is_main_worktree=false # Subsequent entries are not the main one
+            current_path=$(echo "$line" | cut -d' ' -f2-)
+        elif [[ "$line" == path* ]]; then
+             # Path line for the main worktree (only if is_main_worktree is true)
+             if $is_main_worktree; then
+                 current_path=$(echo "$line" | cut -d' ' -f2-)
+             fi
+        elif [[ "$line" == HEAD* ]]; then
+            # HEAD commit, ignore for now
+            :
+        elif [[ "$line" == branch* ]]; then
+            current_branch=$(echo "$line" | cut -d' ' -f2-)
+            # Clean up ref name (e.g., refs/heads/main -> main)
+            current_branch=$(basename "$current_branch")
+        elif [[ "$line" == "" && -n "$current_path" ]]; then
+            # End of a worktree entry (empty line)
+
+            # Determine if this is the current worktree
+            local is_current=false
+            if [ "$current_path" == "$current_worktree_path" ]; then
+                is_current=true
+            fi
+
+            # Store parsed data - using a simple string format for the array
+            worktree_data+=("${current_path}|${current_branch}|${is_current}|${is_main_worktree}")
+
+            # Reset for next entry (path is reset by 'worktree' line)
+            current_branch=""
+            # is_main_worktree is handled by seeing the 'worktree' line
+        fi
+    done < <(git worktree list --porcelain)
+
+    # Process the last entry if the input didn't end with a blank line
+     if [[ -n "$current_path" ]]; then
+        local is_current=false
+        if [ "$current_path" == "$current_worktree_path" ]; then
+            is_current=true
+        fi
+         worktree_data+=("${current_path}|${current_branch}|${is_current}|${is_main_worktree}")
+     fi
+
+    # --- Format Output ---
+    local OLD_IFS="$IFS"
+    IFS='|'
+    for entry in "${worktree_data[@]}"; do
+        # Split the entry string back into variables
+        local path branch is_current is_dynamic
+        read -r path branch is_current is_dynamic <<< "$entry"
+
+        local prefix="  "
+        local dynamic_marker=""
+
+        if [ "$is_current" = true ]; then
+            prefix="* "
+        fi
+
+        if [ "$is_dynamic" = true ]; then
+            dynamic_marker=" (dynamic)"
+        fi
+
+        # Use printf for consistent spacing (adjust width as needed)
+        printf "%s%-20s%s %s\n" "$prefix" "$branch" "$dynamic_marker" "$path"
+
+    done
+    IFS="$OLD_IFS" # Restore original IFS
+}
+
+
 # --- Main script logic ---
 main() {
     if [ $# -eq 0 ]; then
@@ -340,6 +445,9 @@ main() {
         ;;
     add)
         cmd_add "$@"
+        ;;
+    list)
+        cmd_list "$@"
         ;;
     --help | -h)
         usage
