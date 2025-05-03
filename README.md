@@ -1,18 +1,44 @@
 # git-express
 
-An express mechanism for utilizing git branches and worktrees in a sane and flexible manner
+An opinionated express mechanism for utilizing git branches and worktrees in a sane and flexible manner
 
-## git-express commands
+## Definitions/Vocabulary
 
-### clone
+dynamic worktree = worktree that is the "base" for all other worktrees and allows usage of git switch
+static worktree =  worktree that with a named "branch" and does not allow usage of git switch
+worktree-name (dynamic) = <<repository-name>>
+worktree-name (static) = <<repository-name>>.<<branch-flattened>>
+branch = any git branch name
+branch-flattened = branch name with any directory markers '/' replaced with a '-'
 
-git-express clone <repository> [<directory>]
+## Subcommands
 
-- all options passed to git-express clone will be passed to git clone unchecked (you can break things using options that are not compatible with git-express design)
-- first create the dynamic view by executing a git clone
-- second create a forced named worktree for the default branch using name <repository-name>.<branch-name>
+### git-express clone - Clone repository and create worktree
 
-## layout structure
+```text
+
+git-express clone [options] [-b <branch>] <repository> [<directory>]
+
+- <directory> is now the default location for any worktree created by git-express
+- Creates git repository in <directory> that serves as the "dynamic worktree"
+- Creates git worktree in <directory> using naming of <repository-name>.<branch-flattened>
+     if -b branch not specified branch will be the repository HEAD branch
+
+Note: All [options] passed to git-express clone will be passed internally to git clone unchecked and may break things, use judiciously.
+```
+
+### git-express new - Create a worktree and create new branch if needed
+
+```text
+git-express new <branch>
+
+- Creates git worktree for <branch> using standard naming of <repository-name>.<branch-flattened>
+- If the <branch> does not exist, it will be created as a new branch
+
+Note: All [options] passed to git-express new will be passed internally to git worktree add unchecked and may break things, use judiciously.
+```
+
+## Directory Layout/Structure
 
 This is an example directory layout for worktrees for 2 repos.
 
