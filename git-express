@@ -68,6 +68,7 @@ usage() {
     echo "  clone [opts] [-b <branch>] <repo> [<dir>]  Clone repo and setup worktrees"
     echo "  add   [opts] <branch>                   Create worktree for <branch>, create branch if needed"
     echo "  list                                    List all git-express managed worktrees"
+    echo "  remove [opts] <worktree-path>            Remove a static worktree"
     # Add other commands here later
     exit 1
 }
