@@ -19,72 +19,147 @@ usage() {
 
 # --- Clone command ---
 cmd_clone() {
-    if [ $# -lt 1 ]; then
-        echo "Error: Missing repository argument for clone command."
+    local repository=""
+    local directory=""
+    local branch_to_checkout=""
+    local clone_options=() # Options to pass to git clone
+
+    # --- Argument Parsing ---
+    # Manual parsing to handle options, repository, and optional directory
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -b)
+                if [[ -z "$2" || "$2" == -* ]]; then
+                    echo "Error: Option -b requires a branch name." >&2
+                    usage
+                fi
+                branch_to_checkout="$2"
+                shift 2 # Consume -b and its argument
+                ;;
+            --)
+                # All subsequent arguments are treated as non-options
+                shift # Consume --
+                clone_options+=("$@") # Add remaining args to clone_options
+                break # Stop parsing options
+                ;;
+            -*)
+                # Assume it's an option for git clone
+                clone_options+=("$1")
+                # Handle options with arguments if necessary, simple case for now
+                if [[ "$1" == "-o" || "$1" == "--origin" || \
+                      "$1" == "-c" || "$1" == "--config" || \
+                      "$1" == "--depth" || "$1" == "--recurse-submodules" || \
+                      "$1" == "--shallow-since" || "$1" == "--shallow-exclude" || \
+                      "$1" == "-j" || "$1" == "--jobs" || \
+                      "$1" == "--reference" || "$1" == "--reference-if-able" || \
+                      "$1" == "--dissociate" || "$1" == "--separate-git-dir" || \
+                      "$1" == "-u" || "$1" == "--upload-pack" || \
+                      "$1" == "--template" || "$1" == "--server-option" ]]; then
+                    if [[ -z "$2" || "$2" == -* ]]; then
+                         # Assume it's a boolean flag or git clone will handle error
+                         : # No-op, just add the flag
+                    else
+                        clone_options+=("$2")
+                        shift # Consume the option's argument
+                    fi
+                fi
+                shift # Consume the option itself
+                ;;
+            *)
+                # First non-option argument is the repository
+                if [ -z "$repository" ]; then
+                    repository="$1"
+                # Second non-option argument is the directory
+                elif [ -z "$directory" ]; then
+                    directory="$1"
+                else
+                    # More than two non-option arguments (after potential --)
+                    # If we already have repo and dir, treat others as clone options/args
+                    # This case might be complex depending on git clone's own parsing
+                    # For simplicity, let's assume only repo and dir are positional after options
+                    # Or, if user used '--', they are already in clone_options
+                    if [[ ! " ${clone_options[@]} " =~ " $1 " ]]; then # Avoid duplicates if already added after --
+                       echo "Warning: Unexpected argument '$1'. Passing to git clone." >&2
+                       clone_options+=("$1")
+                    fi
+                fi
+                shift # Consume the argument
+                ;;
+        esac
+    done
+
+    # --- Validation ---
+    if [ -z "$repository" ]; then
+        echo "Error: Missing repository argument for clone command." >&2
         usage
     fi
 
-    local repository="$1"
-    shift # Remove repository from arguments
-
-    # All remaining arguments are passed directly to git clone
-    local clone_args=("$@")
-
-    # Derive default directory name from repository URL
-    local directory
-    directory=$(basename "$repository" .git)
-
-    # Check if the last argument is intended as the directory
-    # Check if clone_args is not empty first
-    if [ ${#clone_args[@]} -gt 0 ]; then
-        local last_arg="${clone_args[${#clone_args[@]}-1]}" # Get the last argument safely
-
-        # Check if the last argument is not an option (doesn't start with '-')
-        # and is not the same as the repository URL (unlikely after shift, but safe)
-        # and is not part of options after '--'
-        if [[ ! " ${clone_args[@]} " =~ " -- " ]] && [[ "$last_arg" != "$repository" ]] && [[ ! "$last_arg" =~ ^- ]]; then
-            # Assume last arg is the directory name
-            directory="$last_arg"
-            # Remove the directory from clone_args
-            unset 'clone_args[${#clone_args[@]}-1]'
-        fi
+    # Derive default directory name if not provided
+    if [ -z "$directory" ]; then
+        directory=$(basename "$repository" .git)
     fi
 
+    # --- Execution ---
     echo "Cloning repository '$repository' into '$directory'..."
-    # Pass remaining clone_args (if any)
-    git clone "$repository" "${clone_args[@]}" "$directory"
+    # Note: We don't pass -b to git clone here. We handle the branch checkout later.
+    git clone "${clone_options[@]}" "$repository" "$directory"
 
-    # Navigate into the cloned repository
+    # Navigate into the cloned repository (dynamic worktree)
     pushd "$directory" > /dev/null
 
-    echo "Setting up worktree for default branch..."
-    # Determine the default branch name (handle main/master variations)
-    local default_branch
-    default_branch=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
-
-    if [ -z "$default_branch" ]; then
-        echo "Error: Could not determine the default branch."
-        popd > /dev/null
-        exit 1
+    local branch_for_static_worktree=""
+    if [ -n "$branch_to_checkout" ]; then
+        # User specified a branch with -b
+        branch_for_static_worktree="$branch_to_checkout"
+        echo "Setting up worktree for specified branch '$branch_for_static_worktree'..."
+        # Check if the branch exists locally or remotely
+        if ! git show-ref --verify --quiet "refs/heads/$branch_for_static_worktree" && \
+           ! git show-ref --verify --quiet "refs/remotes/origin/$branch_for_static_worktree"; then
+             echo "Error: Branch '$branch_for_static_worktree' not found locally or in origin remote." >&2
+             # Clean up potentially incomplete clone? Maybe not, let user decide.
+             popd > /dev/null
+             return 1 # Use return instead of exit for functions
+        fi
+    else
+        # Determine the default branch name (handle main/master variations)
+        echo "Determining default branch..."
+        branch_for_static_worktree=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+        if [ -z "$branch_for_static_worktree" ]; then
+            echo "Error: Could not determine the default branch." >&2
+            popd > /dev/null
+            return 1
+        fi
+        echo "Setting up worktree for default branch '$branch_for_static_worktree'..."
     fi
 
     # Flatten the branch name (replace / with -)
     local flattened_branch_name
-    flattened_branch_name=$(echo "$default_branch" | sed 's/\//-/g')
+    flattened_branch_name=$(echo "$branch_for_static_worktree" | sed 's/[^a-zA-Z0-9._-]/-/g') # More robust flattening
 
     # Construct the worktree directory name relative to the parent directory
     local worktree_dir="../${directory}.${flattened_branch_name}"
 
-    echo "Creating worktree at '$worktree_dir' for branch '$default_branch'..."
-    # Use --force because the branch already exists in the main worktree checkout
-    git worktree add --force "$worktree_dir" "$default_branch"
+    echo "Creating static worktree at '$worktree_dir' for branch '$branch_for_static_worktree'..."
+    # Use --force because the branch might already exist in the main worktree checkout (especially the default branch)
+    # Or if -b specified a branch that's the same as the default HEAD checkout.
+    # We also need to ensure the branch exists for `git worktree add`.
+    # If the branch is remote, `git worktree add` can check it out directly.
+    if git worktree add --force "$worktree_dir" "$branch_for_static_worktree"; then
+        echo "Static worktree created successfully."
+    else
+        echo "Error: Failed to create worktree for branch '$branch_for_static_worktree'." >&2
+        # Attempt to clean up? Maybe just report error.
+        popd > /dev/null
+        return 1
+    fi
+
 
     # Return to the original directory
     popd > /dev/null
 
     echo "Git-express clone complete for '$directory'."
     echo "Dynamic view: $directory"
-    echo "Static worktree for $default_branch: $worktree_dir"
+    echo "Static worktree for $branch_for_static_worktree: $worktree_dir"
 }
 
 # --- Main script logic ---
