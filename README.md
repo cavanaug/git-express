@@ -49,6 +49,22 @@ git-express list
 - Output format: [* ]<branch> [(dynamic)] <path>
 ```
 
+### git-express remove - Remove a static worktree
+
+```text
+git-express remove [opts] <worktree-path>
+
+- Removes an existing static git-express worktree.
+- Uses 'git worktree remove' internally.
+- Prevents removing the main (dynamic) worktree.
+- Example: git-express remove ../my-repo.feature-x
+
+Options:
+  -f, --force   Force removal even if the worktree has uncommitted changes.
+  -q, --quiet   Suppress informational messages.
+  [opts]        Other options passed directly to 'git worktree remove'.
+```
+
 ## Directory Layout/Structure
 
 This is an example directory layout for worktrees for 2 repos.

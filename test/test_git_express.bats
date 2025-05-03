@@ -4,5 +4,6 @@
 # - test_clone.bats
 # - test_add.bats
 # - test_list.bats
+# - test_remove.bats
 #
 # It can be removed or kept empty.

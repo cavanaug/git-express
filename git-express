@@ -731,6 +731,9 @@ main() {
     list)
         cmd_list "$@"
         ;;
+    remove)
+        cmd_remove "$@"
+        ;;
     --help | -h)
         usage
         ;;
