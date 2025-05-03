@@ -15,7 +15,7 @@ gx-cw() {
     local current_dir=$(pwd)        # Remember current directory in case of failure
 
     if [ -z "$target_branch" ]; then
-        echo "Usage: gx-cw <branch-name>" >&2
+        echo "Usage: gx-cw <branch-name | />" >&2
         return 1
     fi
 
@@ -25,17 +25,33 @@ gx-cw() {
         return 1
     fi
 
-    # Flatten the target branch name (replace / with -) like in git-express clone
-    local flattened_target_branch
-    flattened_target_branch=$(echo "$target_branch" | sed 's/\//-/g')
-    local expected_suffix=".${flattened_target_branch}"
-
-    # Get main worktree path early
+    # Get main worktree path early - needed for '/' case and fallback
     main_worktree_path=$(git rev-parse --show-toplevel)
     if [ -z "$main_worktree_path" ]; then
          echo "Error: Could not determine main worktree path." >&2
          return 1
     fi
+
+    # Handle special case: cd to main worktree (dynamic view)
+    if [ "$target_branch" == "/" ]; then
+        if [ -d "$main_worktree_path" ]; then
+            printf "cd %q\n" "$main_worktree_path"
+            return 0
+        else
+            # Should not happen if main_worktree_path was determined correctly
+            echo "Error: Main worktree directory does not exist: $main_worktree_path" >&2
+            return 1
+        fi
+    fi
+
+    # --- Proceed with finding specific branch worktree ---
+
+    # Flatten the target branch name (replace / with -) like in git-express clone
+    local flattened_target_branch
+    flattened_target_branch=$(echo "$target_branch" | sed 's/\//-/g')
+    local expected_suffix=".${flattened_target_branch}"
+
+    # Get main worktree branch (already have path)
     main_worktree_branch=$(git -C "$main_worktree_path" branch --show-current 2>/dev/null || true)
 
     # Use git worktree list and parse the output
