@@ -114,16 +114,27 @@ cmd_clone() {
             return 1 # Use return instead of exit for functions
         fi
     else
-        # Determine the default branch name (handle main/master variations)
+        # Determine the default branch name by checking the current branch in the main worktree
         if [ "$quiet_mode" = false ]; then
-            echo "Determining default branch..."
+            echo "Determining default branch (from current checkout)..."
         fi
-        # Use git symbolic-ref --short for cleaner output if available, fallback otherwise
-        branch_for_static_worktree=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+        # We are already inside the main worktree (due to pushd)
+        branch_for_static_worktree=$(git branch --show-current)
         if [ -z "$branch_for_static_worktree" ]; then
-            echo "Error: Could not determine the default branch." >&2
-            popd >/dev/null
-            return 1
+             # Fallback or error handling if HEAD is detached after clone (unlikely but possible)
+             echo "Warning: Could not determine branch name using 'git branch --show-current'. Trying symbolic-ref..." >&2
+             # symbolic-ref HEAD might give the full ref name, use --short if available
+             branch_for_static_worktree=$(git symbolic-ref --short HEAD 2>/dev/null)
+             if [ -z "$branch_for_static_worktree" ]; then
+                 # Final fallback: try parsing the remote HEAD again, ensuring prefix removal
+                 echo "Warning: Could not determine branch name using 'git symbolic-ref --short HEAD'. Trying remote HEAD..." >&2
+                 branch_for_static_worktree=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@' 2>/dev/null)
+                 if [ -z "$branch_for_static_worktree" ]; then
+                     echo "Error: Could not determine the default branch name." >&2
+                     popd >/dev/null
+                     return 1
+                 fi
+             fi
         fi
         if [ "$quiet_mode" = false ]; then
             echo "Setting up worktree for default branch '$branch_for_static_worktree'..."
