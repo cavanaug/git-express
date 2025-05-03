@@ -33,6 +33,8 @@ setup_file() {
 
     # Create initial commit and branches in a temporary clone
     local temp_clone_path="${BATS_TMPDIR}/remote_repo_setup"
+    # Ensure the temp clone path is clean before cloning
+    rm -rf "$temp_clone_path"
     git clone "$REMOTE_REPO_PATH" "$temp_clone_path"
     pushd "$temp_clone_path" > /dev/null
     # No need for local git config user.* here, env vars handle it
