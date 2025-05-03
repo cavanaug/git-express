@@ -50,8 +50,8 @@ usage_remove() {
     echo ""
     echo "  Remove an existing static git-express worktree, specified by branch name or path."
     echo "  Uses 'git worktree remove' internally."
-    echo "  Example (by path): git-express remove ../my-repo.feature-x"
-    echo "  Example (by branch): git-express remove feature-x"
+    echo "  Prevents removing the main (dynamic) worktree."
+    echo "  If a branch name is given, it finds the corresponding static worktree path (e.g., ../<repo>.<branch>)."
     echo ""
     echo "  Options:"
     echo "    -f, --force   Force removal even if the worktree has uncommitted changes."
@@ -410,28 +410,27 @@ cmd_add() {
 
 # --- Remove command ---
 cmd_remove() {
-    # Check for help option first and exit cleanly
+    # Check for help option first
     if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-        usage_remove # This function now exits 0 when called for help
-        exit 0 # Explicitly exit 0 after showing help
+        usage_remove
+        exit 0 # Exit cleanly after showing help
     fi
 
     local target_identifier="" # Can be branch name or path
     local remove_options=() # Options to pass to git worktree remove
     local quiet_mode=false
-    local force_mode=false # Specific flag for --force
+    local force_mode=false
 
     # --- Argument Parsing ---
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -q|--quiet)
                 quiet_mode=true
-                remove_options+=("$1") # Pass -q to git worktree remove
                 shift
                 ;;
             -f|--force)
                 force_mode=true
-                remove_options+=("$1") # Pass -f to git worktree remove
+                remove_options+=("--force")
                 shift
                 ;;
             --)
@@ -454,7 +453,8 @@ cmd_remove() {
                     target_identifier="$1"
                 else
                     echo "Error: Unexpected argument '$1' for 'remove' command. Target already set to '$target_identifier'." >&2
-                    usage_remove # Show specific usage for remove
+                    usage_remove
+                    return 1
                 fi
                 shift
                 ;;
@@ -465,10 +465,10 @@ cmd_remove() {
     if [ -z "$target_identifier" ]; then
         echo "Error: Missing required <branch-name | worktree-path> argument for 'remove' command." >&2
         usage_remove
+        return 1
     fi
 
     # Check if inside a git repository/worktree
-    # Run this check *before* resolving paths relative to the main worktree
     if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
         echo "Error: Not inside a git repository or worktree." >&2
         return 1
@@ -477,196 +477,124 @@ cmd_remove() {
     # Get main worktree path (dynamic view)
     local main_worktree_path
     main_worktree_path=$(git rev-parse --show-toplevel)
-     if [ -z "$main_worktree_path" ]; then
+    if [ -z "$main_worktree_path" ]; then
         echo "Error: Could not determine the repository's top-level directory." >&2
         return 1
     fi
     local abs_main_worktree_path
     abs_main_worktree_path=$(realpath "$main_worktree_path")
-    local main_worktree_parent_dir
-    main_worktree_parent_dir=$(dirname "$main_worktree_path")
-    local repo_name=$(basename "$main_worktree_path")
+    local repo_name
+    repo_name=$(basename "$main_worktree_path")
 
-    # --- Find Matching Worktree ---
-    # We need the path string as listed by git for the remove command,
-    # and we need to check for staleness and prevent removing the main worktree.
-
-    local found_match=false
-    local target_path_for_git_cmd="" # Path string as listed by git
-    local target_path_for_display="" # Path string for user messages (input or derived)
-    local target_path_exists=false   # Does the target path actually exist on disk?
-    local is_stale_entry=false
-
-    # Function to check a potential path against registered worktrees
-    check_path() {
-        local potential_path="$1"
-        local path_source_desc="$2" # Description for error messages (e.g., "input path", "derived path for branch X")
-
-        local abs_potential_path
-        abs_potential_path=$(realpath -m "$potential_path")
-        if [ -z "$abs_potential_path" ]; then
-            echo "Error: Could not resolve canonical path for $path_source_desc '$potential_path'." >&2
-            return 2 # Indicate resolution error
-        fi
-
-        # Prevent removing main worktree
-        if [ "$abs_potential_path" == "$abs_main_worktree_path" ]; then
-            echo "Error: Cannot remove the main (dynamic) worktree ('$potential_path')." >&2
+    # Determine if target is a path or branch name
+    local target_path=""
+    
+    # First, check if target is a direct path to a worktree
+    if [ -d "$target_identifier" ]; then
+        target_path="$target_identifier"
+        
+        # Prevent removing the main worktree
+        local abs_target_path
+        abs_target_path=$(realpath "$target_path")
+        if [ "$abs_target_path" == "$abs_main_worktree_path" ]; then
+            echo "Error: Cannot remove the main (dynamic) worktree ('$target_path')." >&2
             echo "git-express only supports removing static worktrees." >&2
-            return 1 # Indicate forbidden removal
-        fi
-
-        local current_path_exists=false
-        if [ -e "$potential_path" ]; then
-            current_path_exists=true
-        fi
-
-        # Loop through registered worktrees (single porcelain is sufficient)
-        while IFS= read -r line; do
-            if [[ "$line" == worktree* ]]; then
-                local registered_path_str
-                registered_path_str=$(echo "$line" | cut -d' ' -f2-)
-                local abs_registered_path
-
-                # Resolve the path string from git list using realpath -m
-                if [[ "$registered_path_str" == /* ]]; then
-                    abs_registered_path=$(realpath -m "$registered_path_str")
-                else
-                    abs_registered_path=$(realpath -m "$main_worktree_parent_dir/$registered_path_str")
-                fi
-
-                if [ -z "$abs_registered_path" ]; then
-                    echo "Warning: Could not resolve canonical path for registered worktree '$registered_path_str'. Skipping." >&2
-                    continue
-                fi
-
-                # Compare resolved paths
-                if [ "$abs_registered_path" == "$abs_potential_path" ]; then
-                    # Found a match!
-                    found_match=true
-                    target_path_for_git_cmd="$registered_path_str"
-                    target_path_for_display="$potential_path"
-                    target_path_exists="$current_path_exists"
-
-                    # Check for staleness right away
-                    if [ "$target_path_exists" = false ]; then
-                        is_stale_entry=true
-                    fi
-                    return 0 # Found match
-                fi
-            fi
-        done < <(git worktree list --porcelain)
-
-        # If loop finishes without finding a match for this potential_path
-        return 3 # Indicate no match found for this path
-    }
-
-    # --- Pass 1: Try interpreting target_identifier as a path ---
-    check_path "$target_identifier" "input path"
-    local check_status=$?
-
-    if [ "$check_status" -eq 0 ]; then
-        # Found a match based on path input, proceed to validation/execution
-        : # No action needed here, variables are set
-    elif [ "$check_status" -eq 1 ] || [ "$check_status" -eq 2 ]; then
-        # Forbidden removal or resolution error
-        return 1
-    elif [ "$check_status" -eq 3 ]; then
-        # --- Pass 2: Try interpreting target_identifier as a branch name ---
-        if [ "$quiet_mode" = false ]; then
-            echo "Input '$target_identifier' did not match a registered worktree path. Trying as branch name..." >&2
-        fi
-        local target_branch="$target_identifier"
-        local flattened_branch_name
-        flattened_branch_name=$(echo "$target_branch" | sed 's/[^a-zA-Z0-9._-]/-/g')
-        local derived_path="../${repo_name}.${flattened_branch_name}"
-
-        # Debug output to help diagnose issues
-        if [ "$quiet_mode" = false ]; then
-            echo "Looking for worktree at derived path: $derived_path" >&2
-        fi
-
-        check_path "$derived_path" "derived path for branch '$target_branch'"
-        check_status=$?
-
-        if [ "$check_status" -eq 0 ]; then
-            # Found a match based on derived path
-            : # No action needed here, variables are set
-        elif [ "$check_status" -eq 1 ] || [ "$check_status" -eq 2 ]; then
-            # Forbidden removal or resolution error
-            return 1
-        elif [ "$check_status" -eq 3 ]; then
-            # No match found either way
-            if [ -e "$target_identifier" ]; then
-                echo "Error: Worktree path '$target_identifier' exists but is not a registered worktree." >&2
-            else
-                echo "Error: Worktree path '$target_identifier' does not exist and is not a registered worktree." >&2
-            fi
-            
-            # Check if the branch name exists in git, even if no worktree matches
-            if git show-ref --verify --quiet "refs/heads/$target_identifier"; then
-                echo "Branch '$target_identifier' exists, but no corresponding static worktree was found." >&2
-            fi
-            
             return 1
         fi
-    fi
-
-    # --- Post-Match Validation ---
-    if [ "$is_stale_entry" = true ]; then
-        echo "Error: Worktree path '$target_path_for_display' does not exist, but a registration was found." >&2
-        echo "Use 'git-express prune' (not yet implemented) to remove stale worktree entries." >&2
-        return 1
-    fi
-
-    # If we reach here, we have a valid, existing, registered worktree to remove.
-    local worktree_basename
-    worktree_basename=$(basename "$target_path_for_git_cmd") # Basename from git's path
-    local display_path="$target_path_for_display" # Path for user messages
-
-
-    # --- Execution ---
-    # Stale entry case is now handled above and causes an error exit.
-    # Proceed only if the path exists and is a registered worktree.
-
-    if [ "$quiet_mode" = false ]; then
-        if [ "$force_mode" = true ]; then
-            echo "Force removing worktree '$display_path'..."
-        else
-            echo "Removing worktree '$display_path'..."
-        fi
-    fi
-
-    # Prepare options for git worktree remove. DO NOT pass --quiet.
-    local remove_cmd_options=()
-    # Copy only known/safe options from user input (currently just -f/--force)
-    # Or simply pass all non -q options through? Let's pass them through for now,
-    # but filter out -q/--quiet explicitly.
-    for opt in "${remove_options[@]}"; do
-        if [[ "$opt" != "-q" && "$opt" != "--quiet" ]]; then
-            remove_cmd_options+=("$opt")
-        fi
-    done
-
-    # Ensure --force is present if force_mode is true and not already passed by user
-    if [ "$force_mode" = true ] && ! printf '%s\n' "${remove_cmd_options[@]}" | grep -q -e '-f' -e '--force'; then
-         remove_cmd_options+=("--force")
-    fi
-
-
-    # Execute git worktree remove
-    # Pass the path exactly as git knows it
-    if git worktree remove "${remove_cmd_options[@]}" "$target_path_for_git_cmd"; then
-        if [ "$quiet_mode" = false ]; then
-            echo "Worktree removed successfully."
-            # Use basename for the final confirmation message
-            echo "git-express remove complete for $worktree_basename"
+        
+        # Verify it's a git worktree
+        if [ ! -f "$target_path/.git" ]; then
+            echo "Error: Path '$target_path' exists but is not a git worktree." >&2
+            return 1
         fi
     else
-        # Use the display path in the error message
-        echo "Error: Failed to remove worktree '$display_path'." >&2
-        # git worktree remove might fail if there are uncommitted changes (without --force)
-        # or other issues.
+        # Try to interpret as a branch name
+        if [ "$quiet_mode" = false ]; then
+            echo "No directory found at '$target_identifier', trying as branch name..."
+        fi
+        
+        # Check if branch exists
+        if ! git show-ref --verify --quiet "refs/heads/$target_identifier"; then
+            echo "Error: Branch '$target_identifier' does not exist." >&2
+            return 1
+        fi
+        
+        # Construct expected worktree path for this branch
+        local flattened_branch_name
+        flattened_branch_name=$(echo "$target_identifier" | sed 's/[^a-zA-Z0-9._-]/-/g')
+        target_path="../${repo_name}.${flattened_branch_name}"
+        
+        if [ "$quiet_mode" = false ]; then
+            echo "Looking for worktree at path: $target_path"
+        fi
+        
+        if [ ! -d "$target_path" ]; then
+            echo "Error: No worktree found for branch '$target_identifier' at expected path '$target_path'." >&2
+            return 1
+        fi
+    fi
+    
+    # Verify the target is a registered worktree
+    local is_registered=false
+    local git_worktree_path=""
+    
+    while IFS= read -r line; do
+        if [[ "$line" == worktree* ]]; then
+            local registered_path
+            registered_path=$(echo "$line" | cut -d' ' -f2-)
+            local abs_registered_path
+            
+            # Handle absolute and relative paths
+            if [[ "$registered_path" == /* ]]; then
+                abs_registered_path=$(realpath -m "$registered_path")
+            else
+                abs_registered_path=$(realpath -m "$(dirname "$main_worktree_path")/$registered_path")
+            fi
+            
+            local abs_target_path
+            abs_target_path=$(realpath -m "$target_path")
+            
+            if [ "$abs_registered_path" == "$abs_target_path" ]; then
+                is_registered=true
+                git_worktree_path="$registered_path"
+                break
+            fi
+        fi
+    done < <(git worktree list --porcelain)
+    
+    if [ "$is_registered" = false ]; then
+        echo "Error: Path '$target_path' is not a registered git worktree." >&2
+        return 1
+    fi
+    
+    # Check if the worktree exists on disk
+    if [ ! -d "$target_path" ]; then
+        echo "Error: Worktree path '$target_path' does not exist, but a registration was found." >&2
+        echo "Use 'git worktree prune' to remove stale worktree entries." >&2
+        return 1
+    fi
+    
+    # --- Execution ---
+    if [ "$quiet_mode" = false ]; then
+        if [ "$force_mode" = true ]; then
+            echo "Force removing worktree at '$target_path'..."
+        else
+            echo "Removing worktree at '$target_path'..."
+        fi
+    fi
+    
+    # Execute git worktree remove
+    if git worktree remove "${remove_options[@]}" "$target_path"; then
+        if [ "$quiet_mode" = false ]; then
+            echo "Worktree removed successfully."
+            echo "git-express remove complete for $(basename "$target_path")"
+        fi
+        return 0
+    else
+        echo "Error: Failed to remove worktree at '$target_path'." >&2
+        if [ "$force_mode" = false ]; then
+            echo "Tip: Use --force (-f) to remove worktrees with uncommitted changes." >&2
+        fi
         return 1
     fi
 }
