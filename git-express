@@ -139,7 +139,10 @@ cmd_clone() {
 
     echo
     echo "git-express clone complete for '$directory'."
-    echo "git-express worktree complete for xxx"
+    # Extract the worktree directory name from the path
+    local worktree_name
+    worktree_name=$(basename "$worktree_dir")
+    echo "git-express worktree complete for $worktree_name"
 }
 
 # --- Main script logic ---
