@@ -569,9 +569,63 @@ cmd_remove() {
     
     # Check if the worktree exists on disk
     if [ ! -d "$target_path" ]; then
-        echo "Error: Worktree path '$target_path' does not exist, but a registration was found." >&2
-        echo "Use 'git worktree prune' to remove stale worktree entries." >&2
-        return 1
+        # Special case for stale entries - check if it's registered in git
+        local is_stale=false
+        while IFS= read -r line; do
+            if [[ "$line" == worktree* ]]; then
+                local registered_path
+                registered_path=$(echo "$line" | cut -d' ' -f2-)
+                local abs_registered_path
+                
+                # Handle absolute and relative paths
+                if [[ "$registered_path" == /* ]]; then
+                    abs_registered_path=$(realpath -m "$registered_path")
+                else
+                    abs_registered_path=$(realpath -m "$(dirname "$main_worktree_path")/$registered_path")
+                fi
+                
+                local abs_target_path
+                abs_target_path=$(realpath -m "$target_path")
+                
+                if [ "$abs_registered_path" == "$abs_target_path" ]; then
+                    is_stale=true
+                    break
+                fi
+            fi
+        done < <(git worktree list --porcelain)
+        
+        if [ "$is_stale" = true ]; then
+            echo "Error: Worktree path '$target_path' does not exist, but a registration was found." >&2
+            echo "Use 'git worktree prune' to remove stale worktree entries." >&2
+            return 1
+        else
+            # If not stale, treat as a non-existent path
+            if [ "$quiet_mode" = false ]; then
+                echo "No directory found at '$target_path', trying as branch name..."
+            fi
+            # Check if it could be a branch name
+            if git show-ref --verify --quiet "refs/heads/$target_path"; then
+                # It's a branch, try to find its worktree
+                local flattened_branch_name
+                flattened_branch_name=$(echo "$target_path" | sed 's/[^a-zA-Z0-9._-]/-/g')
+                local derived_path="../${repo_name}.${flattened_branch_name}"
+                
+                if [ "$quiet_mode" = false ]; then
+                    echo "Looking for worktree at path: $derived_path"
+                fi
+                
+                if [ ! -d "$derived_path" ]; then
+                    echo "Error: No worktree found for branch '$target_path' at expected path '$derived_path'." >&2
+                    return 1
+                fi
+                
+                # Update target_path to the derived path and continue
+                target_path="$derived_path"
+            else
+                echo "Error: Branch '$target_path' does not exist." >&2
+                return 1
+            fi
+        }
     fi
     
     # --- Execution ---
