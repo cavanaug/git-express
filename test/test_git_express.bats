@@ -208,6 +208,109 @@ teardown() {
     [[ "$output" == *"Usage: git-express <command> [<args>]"* ]]
 }
 
+
+# --- New Command Tests ---
+
+# Helper function to setup a basic cloned repo for 'new' tests
+setup_for_new_tests() {
+    "$GIT_EXPRESS_PATH" clone -q "$REMOTE_REPO_PATH" test-repo
+    # Need to be inside a worktree for 'new' command to work
+    cd test-repo
+    # Ensure main static worktree exists from clone
+    [ -d "../test-repo.main" ]
+}
+
+@test "git-express new: create worktree for existing branch" {
+    setup_for_new_tests
+    # 'simple-branch' exists in the remote repo setup
+    run "$GIT_EXPRESS_PATH" new simple-branch
+    echo "$output"
+    [ "$status" -eq 0 ]
+    [ -d "../test-repo.simple-branch" ]
+    [ -f "../test-repo.simple-branch/simple.txt" ]
+    branch_in_static=$(git -C "../test-repo.simple-branch" branch --show-current)
+    [ "$branch_in_static" = "simple-branch" ]
+    [[ "$output" == *"Creating worktree for branch 'simple-branch'"* ]]
+    [[ "$output" == *"Worktree created for existing branch 'simple-branch'."* ]]
+    [[ "$output" == *"git-express new complete for test-repo.simple-branch"* ]]
+}
+
+@test "git-express new: create worktree and new branch" {
+    setup_for_new_tests
+    run "$GIT_EXPRESS_PATH" new my-new-feature
+    echo "$output"
+    [ "$status" -eq 0 ]
+    [ -d "../test-repo.my-new-feature" ]
+    # New branch is based on current HEAD (main), so should have README.md
+    [ -f "../test-repo.my-new-feature/README.md" ]
+    branch_in_static=$(git -C "../test-repo.my-new-feature" branch --show-current)
+    [ "$branch_in_static" = "my-new-feature" ]
+    # Verify the branch was actually created in the repo
+    git show-ref --verify --quiet "refs/heads/my-new-feature"
+    [ "$?" -eq 0 ]
+    [[ "$output" == *"Creating worktree for branch 'my-new-feature'"* ]]
+    [[ "$output" == *"Branch 'my-new-feature' does not exist. Creating new branch and worktree..."* ]]
+    [[ "$output" == *"New branch 'my-new-feature' and worktree created."* ]]
+    [[ "$output" == *"git-express new complete for test-repo.my-new-feature"* ]]
+}
+
+@test "git-express new: create worktree for new branch with slash" {
+    setup_for_new_tests
+    run "$GIT_EXPRESS_PATH" new feature/another-one
+    echo "$output"
+    [ "$status" -eq 0 ]
+    [ -d "../test-repo.feature-another-one" ]
+    [ -f "../test-repo.feature-another-one/README.md" ] # Based on main
+    branch_in_static=$(git -C "../test-repo.feature-another-one" branch --show-current)
+    [ "$branch_in_static" = "feature/another-one" ]
+    git show-ref --verify --quiet "refs/heads/feature/another-one"
+    [ "$?" -eq 0 ]
+    [[ "$output" == *"git-express new complete for test-repo.feature-another-one"* ]]
+}
+
+@test "git-express new: fails if branch name is missing" {
+    setup_for_new_tests
+    run "$GIT_EXPRESS_PATH" new
+    echo "$output"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Error: Missing branch name for 'new' command."* ]]
+}
+
+@test "git-express new: fails if worktree directory already exists" {
+    setup_for_new_tests
+    # Create for 'simple-branch' first
+    "$GIT_EXPRESS_PATH" new -q simple-branch
+    [ -d "../test-repo.simple-branch" ]
+    # Try to create it again
+    run "$GIT_EXPRESS_PATH" new simple-branch
+    echo "$output"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Error: Target worktree directory '../test-repo.simple-branch' already exists."* ]]
+}
+
+@test "git-express new: fails if not inside a git repository" {
+    # Run from the main test temp dir, not inside a repo clone
+    run "$GIT_EXPRESS_PATH" new some-branch
+    echo "$output"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Error: Not inside a git repository or worktree."* ]]
+}
+
+@test "git-express new: passes options to git worktree add (e.g., --quiet)" {
+    setup_for_new_tests
+    # Use --quiet, which should suppress git's output during worktree add
+    run "$GIT_EXPRESS_PATH" new --quiet my-quiet-branch
+    echo "Output: $output" # Should only contain git-express messages
+    [ "$status" -eq 0 ]
+    [ -d "../test-repo.my-quiet-branch" ]
+    # Check that git's "Preparing worktree" messages are absent
+    [[ ! "$output" == *"Preparing worktree"* ]]
+    [[ ! "$output" == *"HEAD is now at"* ]]
+    # Check that git-express messages are still present
+    [[ "$output" == *"Creating worktree for branch 'my-quiet-branch'"* ]]
+    [[ "$output" == *"git-express new complete for test-repo.my-quiet-branch"* ]]
+}
+
 @test "git-express clone: fails with non-existent branch using -b" {
     run "$GIT_EXPRESS_PATH" clone -b non-existent-branch "$REMOTE_REPO_PATH" bad-branch-repo
     echo "$output"

@@ -12,7 +12,8 @@ usage() {
     echo "Usage: git-express <command> [<args>]"
     echo ""
     echo "Commands:"
-    echo "  clone <repository> [<directory>]   Clone a repository and set up worktrees"
+    echo "  clone [opts] [-b <branch>] <repo> [<dir>]  Clone repo and setup worktrees"
+    echo "  new   [opts] <branch>                   Create worktree for <branch>, create branch if needed"
     # Add other commands here later
     exit 1
 }
@@ -185,6 +186,98 @@ cmd_clone() {
     fi
 }
 
+
+# --- New command ---
+cmd_new() {
+    local branch_name=""
+    local worktree_options=() # Options to pass to git worktree add
+
+    # --- Argument Parsing ---
+    # Simple parsing: first arg is branch, rest are options for worktree add
+    if [ $# -eq 0 ]; then
+        echo "Error: Missing branch name for 'new' command." >&2
+        usage # Or provide more specific usage for 'new'
+    fi
+    branch_name="$1"
+    shift
+    worktree_options=("$@") # Capture remaining arguments
+
+    # --- Validation ---
+    # Check if inside a git repository/worktree
+    if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+        echo "Error: Not inside a git repository or worktree." >&2
+        return 1
+    fi
+
+    # Get main worktree path (top-level directory of the repo)
+    local main_worktree_path
+    main_worktree_path=$(git rev-parse --show-toplevel)
+    if [ -z "$main_worktree_path" ]; then
+        echo "Error: Could not determine the repository's top-level directory." >&2
+        return 1
+    fi
+    local repo_name
+    repo_name=$(basename "$main_worktree_path")
+
+    # Flatten the branch name
+    local flattened_branch_name
+    flattened_branch_name=$(echo "$branch_name" | sed 's/[^a-zA-Z0-9._-]/-/g') # Use the same robust flattening as clone
+
+    # Construct the expected static worktree directory path (relative to parent of main worktree)
+    local worktree_dir="../${repo_name}.${flattened_branch_name}"
+
+    # Check if the target worktree directory already exists
+    if [ -e "$worktree_dir" ]; then # Use -e to check for file or directory
+        echo "Error: Target worktree directory '$worktree_dir' already exists." >&2
+        return 1
+    fi
+
+    # --- Execution ---
+    local branch_exists=false
+    # Check if branch exists locally or remotely
+    if git rev-parse --verify --quiet "refs/heads/$branch_name" > /dev/null 2>&1 || \
+       git rev-parse --verify --quiet "refs/remotes/origin/$branch_name" > /dev/null 2>&1; then
+        branch_exists=true
+    fi
+
+    echo "Creating worktree for branch '$branch_name' at '$worktree_dir'..."
+
+    # Determine options for git worktree add
+    local add_cmd_options=("${worktree_options[@]}") # Start with user-provided options
+
+    if $branch_exists; then
+        # Branch exists, just create worktree pointing to it
+        # Use --force? Maybe not by default for 'new'. Let user pass it via options.
+        if git worktree add "${add_cmd_options[@]}" "$worktree_dir" "$branch_name"; then
+            echo "Worktree created for existing branch '$branch_name'."
+        else
+            echo "Error: Failed to create worktree for existing branch '$branch_name'." >&2
+            # git worktree add might have created the dir but failed, attempt cleanup
+            rmdir "$worktree_dir" 2>/dev/null || true
+            return 1
+        fi
+    else
+        # Branch does not exist, create it using -b
+        # The new branch will be based on the current HEAD
+        echo "Branch '$branch_name' does not exist. Creating new branch and worktree..."
+        if git worktree add -b "$branch_name" "${add_cmd_options[@]}" "$worktree_dir"; then
+             echo "New branch '$branch_name' and worktree created."
+             # Optional: Push the new branch? Maybe not by default.
+             # git -C "$worktree_dir" push --set-upstream origin "$branch_name"
+        else
+            echo "Error: Failed to create new branch '$branch_name' and worktree." >&2
+            # git worktree add might have created the dir but failed, attempt cleanup
+            rmdir "$worktree_dir" 2>/dev/null || true
+            # Also attempt to clean up the potentially created branch if add failed midway
+            git branch -D "$branch_name" 2>/dev/null || true
+            return 1
+        fi
+    fi
+
+    echo "git-express new complete for $repo_name.$flattened_branch_name"
+}
+
+
 # --- Main script logic ---
 main() {
     if [ $# -eq 0 ]; then
@@ -197,6 +290,9 @@ main() {
     case "$command" in
     clone)
         cmd_clone "$@"
+        ;;
+    new)
+        cmd_new "$@"
         ;;
     --help | -h)
         usage
