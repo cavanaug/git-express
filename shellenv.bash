@@ -42,29 +42,36 @@ gx-cw() {
 
     if [ -n "$worktree_path" ]; then
         if [ -d "$worktree_path" ]; then
-            echo "Changing directory to worktree for branch '$target_branch': $worktree_path"
-            cd "$worktree_path" || return 1 # cd and check for errors
+            # Output the cd command instead of executing it
+            # Use printf for safer quoting if paths contain special characters
+            printf "cd %q\n" "$worktree_path"
         else
             echo "Error: Found worktree entry for '$target_branch', but directory does not exist: $worktree_path" >&2
-            cd "$current_dir" # Go back to original dir
+            # No cd command to output, return error
             return 1
         fi
     else
-        echo "Error: No worktree found for branch '$target_branch'." >&2
         # Check if it's the main worktree's current branch
-        local main_worktree_path=$(git rev-parse --show-toplevel)
-        local current_branch_in_main=$(git -C "$main_worktree_path" branch --show-current)
+        local main_worktree_path
+        main_worktree_path=$(git rev-parse --show-toplevel)
+        if [ -z "$main_worktree_path" ]; then
+             echo "Error: Could not determine main worktree path." >&2
+             return 1
+        fi
+        local current_branch_in_main
+        current_branch_in_main=$(git -C "$main_worktree_path" branch --show-current 2>/dev/null || true) # Avoid error if no branches yet
+
         if [ "$current_branch_in_main" == "$target_branch" ]; then
-             echo "Branch '$target_branch' is active in the main worktree ('dynamic view'): $main_worktree_path"
-             echo "Changing directory to main worktree."
-             cd "$main_worktree_path" || return 1
+             # Output the cd command for the main worktree
+             printf "cd %q\n" "$main_worktree_path"
         else
-             cd "$current_dir" # Go back to original dir
+             echo "Error: No worktree found for branch '$target_branch'." >&2
+             # Also check if the target branch exists at all, maybe? For now, just error.
              return 1
         fi
     fi
 
-    return 0
+    return 0 # Success means we printed a cd command
 }
 
 # Example of how to add more functions:
