@@ -40,7 +40,13 @@ gx-cw() {
 
     # Use git worktree list and parse the output
     # Format: <path> <short-commit> <branch>
-    while IFS= read -r line; do
+    # Temporarily set IFS to newline to process line by line with the for loop
+    local OLD_IFS="$IFS"
+    IFS=$'\n'
+    for line in $(git worktree list); do
+        # Restore IFS early within the loop if needed, or use subshells/commands that don't rely on it.
+        # Here, awk is used, which is safe.
+
         # Extract path and branch info
         local path
         path=$(echo "$line" | awk '{print $1}')
@@ -55,9 +61,12 @@ gx-cw() {
         # It must match the branch AND end with the expected suffix
         if [ "$branch" == "$target_branch" ] && [[ "$path" == *"$expected_suffix" ]]; then
             specific_worktree_path="$path"
-            break # Found the best match, no need to check further
+            # No need to break here, but we store the path. If loop continues, it might find another match (unlikely with gx rules).
+            # Let's keep the break for efficiency, assuming the first match is the only one we need.
+             break # Found the best match, no need to check further
         fi
-    done <<< "$(git worktree list)"
+    done
+    IFS="$OLD_IFS" # Restore original IFS
 
     # --- Decide which path to output ---
 
