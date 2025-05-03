@@ -24,6 +24,10 @@ git-express clone [options] [-b <branch>] <repository> [<directory>]
 - Creates git worktree in <directory> using naming of <repository-name>.<branch-flattened>
      if -b branch not specified branch will be the repository HEAD branch
 
+Options:
+  -b  <branch>     Specify the branch to check out. If not specified, the HEAD branch will be used.
+  [opts]           Other options passed directly to 'git worktree add'.
+
 Note: All [options] passed to git-express clone will be passed internally to git clone unchecked and may break things, use judiciously.
 ```
 
@@ -32,10 +36,11 @@ Note: All [options] passed to git-express clone will be passed internally to git
 ```text
 git-express add [opts] <branch>
 
+- If the <branch> does not currently exist, a new branch will be created
 - Creates git worktree for <branch> using standard naming of <repository-name>.<branch-flattened>
-- If the <branch> does not exist, it will be created as a new branch
 
-Note: All [options] passed to git-express add will be passed internally to git worktree add unchecked and may break things, use judiciously.
+Options:
+  [opts]           Other options passed directly to 'git worktree add'.
 ```
 
 ### git-express list - List worktrees
@@ -47,6 +52,22 @@ git-express list
 - Marks the current worktree with '*'.
 - Marks the dynamic worktree with '(dynamic)'.
 - Output format: [* ]<branch> [(dynamic)] <path>
+
+Options:
+  [opts]           Other options passed directly to 'git worktree list'.
+```
+
+### git-express move - Move a worktree to a new location
+
+```text
+git-express move <worktree> <new-path>
+
+- Moves an existing static git-express worktree to a new location
+- Prevents renaming the worktree itself
+
+Options:
+  -q, --quiet      Suppress informational messages.
+  [opts]           Other options passed directly to 'git worktree move'.
 ```
 
 ### git-express remove - Remove a static worktree
@@ -56,13 +77,12 @@ git-express remove [opts] <worktree-path>
 
 - Removes an existing static git-express worktree.
 - Uses 'git worktree remove' internally.
-- Prevents removing the main (dynamic) worktree.
-- Example: git-express remove ../my-repo.feature-x
+- Prevents removing the (dynamic) worktree.
 
 Options:
-  -f, --force   Force removal even if the worktree has uncommitted changes.
-  -q, --quiet   Suppress informational messages.
-  [opts]        Other options passed directly to 'git worktree remove'.
+  -f, --force      Force removal even if the worktree has uncommitted changes.
+  -q, --quiet      Suppress informational messages.
+  [opts]           Other options passed directly to 'git worktree remove'.
 ```
 
 ## Directory Layout/Structure
