@@ -1,13 +1,11 @@
-#!/usr/bin/env bats
-
-# Make the script accessible if running tests from the root directory
-GIT_EXPRESS_PATH="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)/git-express"
-TEST_TEMP_DIR="" # Will be set in setup
-
-# --- Test Setup ---
-
-# Store original env vars to restore later
-_OLD_GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-}"
+# This file is now split into:
+# - test_common.bash
+# - test_usage.bats
+# - test_clone.bats
+# - test_add.bats
+# - test_list.bats
+#
+# It can be removed or kept empty.
 _OLD_GIT_AUTHOR_NAME="${GIT_AUTHOR_NAME:-}"
 _OLD_GIT_AUTHOR_EMAIL="${GIT_AUTHOR_EMAIL:-}"
 _OLD_GIT_COMMITTER_NAME="${GIT_COMMITTER_NAME:-}"
