@@ -1,3 +1,6 @@
+# **NOTE:  I no longer use/maintain this. I strongly recommend you use https://worktrunk.dev/**
+
+
 # git-express
 
 An opinionated express mechanism for utilizing git branches and worktrees in a sane and flexible manner
